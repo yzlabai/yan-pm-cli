@@ -65,14 +65,6 @@ notify-debouncer-mini = "0.6"
 # Signal handling
 signal-hook = "0.3"
 
-# Self-update (manual: Gitee releases)
-flate2 = "1"
-tar = "0.4"
-self-replace = "1"
-
-[target.'cfg(windows)'.dependencies]
-zip = "2"
-
 # Unix process management
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
