@@ -17,12 +17,19 @@ YanChat 项目管理 CLI — 单二进制，零依赖安装。任务管理 + AI 
 ## 安装
 
 ```bash
-# GitHub Releases 下载（推荐）
-# 下载对应平台的二进制，解压到 PATH 目录
-curl -L https://github.com/nicepkg/yan-pm/releases/latest/download/yan-pm-$(uname -m)-apple-darwin.tar.gz | tar xz
+# macOS (Apple Silicon)
+curl -fsSL https://gitee.com/yzlab/xiaoyan/releases/download/yan-pm-v0.1.0/yan-pm-aarch64-apple-darwin.tar.gz | tar xz
 sudo mv yan-pm /usr/local/bin/
 
-# 自更新到最新版
+# macOS (Intel)
+curl -fsSL https://gitee.com/yzlab/xiaoyan/releases/download/yan-pm-v0.1.0/yan-pm-x86_64-apple-darwin.tar.gz | tar xz
+sudo mv yan-pm /usr/local/bin/
+
+# Linux (x86_64)
+curl -fsSL https://gitee.com/yzlab/xiaoyan/releases/download/yan-pm-v0.1.0/yan-pm-x86_64-unknown-linux-gnu.tar.gz | tar xz
+sudo mv yan-pm /usr/local/bin/
+
+# 自更新到最新版（自动从 Gitee Releases 拉取）
 yan-pm self-update
 ```
 
