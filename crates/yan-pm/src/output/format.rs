@@ -29,11 +29,15 @@ pub fn print_projects(projects: &[Project]) {
             Cell::new(&p.slug),
             Cell::new(&p.name),
             Cell::new(match p.status {
+                ProjectStatus::Planning => "规划中",
                 ProjectStatus::Active => "活跃",
+                ProjectStatus::Completed => "已完成",
                 ProjectStatus::Archived => "归档",
             })
             .fg(match p.status {
+                ProjectStatus::Planning => Color::Yellow,
                 ProjectStatus::Active => Color::Green,
+                ProjectStatus::Completed => Color::Blue,
                 ProjectStatus::Archived => Color::DarkGrey,
             }),
             Cell::new(p.my_role.as_deref().unwrap_or("-")),

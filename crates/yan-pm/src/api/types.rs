@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
+    Planning,
     Active,
+    Completed,
     Archived,
 }
 
@@ -224,7 +226,9 @@ pub struct Issue {
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
     pub id: String,
+    #[serde(default)]
     pub project_id: String,
+    #[serde(default)]
     pub user_id: String,
     pub name: String,
     pub local_path: String,
