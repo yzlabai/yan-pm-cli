@@ -46,6 +46,7 @@ fn plist_path() -> PathBuf {
 }
 
 /// Escape a string for safe inclusion in XML text content.
+#[cfg(target_os = "macos")]
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
