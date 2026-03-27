@@ -23,12 +23,20 @@ pub struct ResolvedConfig {
     pub token: String,
 }
 
-/// Config directory: ~/.config/yan-pm/ on all platforms (compatible with TS version)
+/// Config directory: ~/.config/yan-pm-cli/ on all platforms
+/// Falls back to ~/.config/yan-pm/ if the new dir doesn't exist (migration)
 pub fn config_dir() -> PathBuf {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| "/tmp".to_string());
-    PathBuf::from(home).join(".config").join("yan-pm")
+    let base = PathBuf::from(home).join(".config");
+    let new_dir = base.join("yan-pm-cli");
+    let old_dir = base.join("yan-pm");
+    if new_dir.exists() || !old_dir.exists() {
+        new_dir
+    } else {
+        old_dir
+    }
 }
 
 fn config_file() -> PathBuf {

@@ -13,8 +13,8 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "yan-pm",
-    about = "YanChat 项目管理 CLI — 任务管理 + AI Agent 执行 + MCP 桥接",
+    name = "yan-pm-cli",
+    about = "yan.chat 项目管理终端 CLI — 任务管理 + AI Agent 执行 + MCP 桥接",
     version
 )]
 struct Cli {

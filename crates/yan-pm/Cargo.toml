@@ -1,13 +1,13 @@
 [package]
-name = "yan-pm"
+name = "yan-pm-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "YanChat 项目管理 CLI — 终端管理任务 + MCP stdio 桥接"
+description = "yan-pm-cli — yan.chat 项目管理终端 CLI（任务管理 + MCP 桥接 + Daemon + AutoRunner）"
 
 [[bin]]
-name = "yan-pm"
+name = "yan-pm-cli"
 path = "src/main.rs"
 
 [dependencies]

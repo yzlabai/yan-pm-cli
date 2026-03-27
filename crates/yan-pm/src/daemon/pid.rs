@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 
 use crate::config::config_dir;
 
-/// PID file path: ~/.config/yan-pm/daemon.pid
+/// PID file path: ~/.config/yan-pm-cli/daemon.pid
 fn pid_file() -> PathBuf {
     config_dir().join("daemon.pid")
 }

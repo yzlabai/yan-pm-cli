@@ -512,7 +512,7 @@ impl ApiClient {
         let url = format!("{}/api/auth/device/code", base_url.trim_end_matches('/'));
         let res = client
             .post(&url)
-            .json(&serde_json::json!({ "client_id": "yan-pm" }))
+            .json(&serde_json::json!({ "client_id": "yan-pm-cli" }))
             .send()
             .await
             .map_err(|e| ApiError::Network(e.to_string()))?;
@@ -543,7 +543,7 @@ impl ApiClient {
             .json(&serde_json::json!({
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 "device_code": device_code,
-                "client_id": "yan-pm"
+                "client_id": "yan-pm-cli"
             }))
             .send()
             .await
