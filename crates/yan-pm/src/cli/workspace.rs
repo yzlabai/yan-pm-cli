@@ -3,17 +3,22 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use colored::Colorize;
 
+use super::make_client;
 use crate::api::client::{RegisterWorkspaceData, TaskListParams};
 use crate::config;
 use crate::local::directory::{LocalDirectory, LocalWorkspaceConfig};
 use crate::output;
-use super::make_client;
 
-pub async fn link(url: Option<&str>, token: Option<&str>, project_id: &str, custom_path: Option<&str>, custom_name: Option<&str>) -> Result<()> {
+pub async fn link(
+    url: Option<&str>,
+    token: Option<&str>,
+    project_id: &str,
+    custom_path: Option<&str>,
+    custom_name: Option<&str>,
+) -> Result<()> {
     let client = make_client(url, token)?;
     let target_path = match custom_path {
-        Some(p) => std::fs::canonicalize(p)
-            .with_context(|| format!("无法解析路径: {p}"))?,
+        Some(p) => std::fs::canonicalize(p).with_context(|| format!("无法解析路径: {p}"))?,
         None => std::env::current_dir()?,
     };
     let target_str = target_path.to_string_lossy().to_string();
@@ -25,7 +30,14 @@ pub async fn link(url: Option<&str>, token: Option<&str>, project_id: &str, cust
     let machine_id = config::get_machine_id();
     let ws_name = match custom_name {
         Some(n) => n.to_string(),
-        None => format!("{}@{}", target_path.file_name().unwrap_or_default().to_string_lossy(), machine_id),
+        None => format!(
+            "{}@{}",
+            target_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            machine_id
+        ),
     };
     let data = RegisterWorkspaceData {
         name: ws_name,
@@ -33,7 +45,9 @@ pub async fn link(url: Option<&str>, token: Option<&str>, project_id: &str, cust
         machine_id: machine_id.clone(),
         metadata: None,
     };
-    let ws = client.register_workspace(&project.project.id, &data).await?;
+    let ws = client
+        .register_workspace(&project.project.id, &data)
+        .await?;
 
     // Save local link
     config::save_workspace_link(&project.project.id, &target_str, Some(&ws.id))?;
@@ -50,7 +64,12 @@ pub async fn link(url: Option<&str>, token: Option<&str>, project_id: &str, cust
 
     println!(
         "{}",
-        format!("✓ 已关联: {} → {}", target_path.display(), project.project.name).green()
+        format!(
+            "✓ 已关联: {} → {}",
+            target_path.display(),
+            project.project.name
+        )
+        .green()
     );
 
     // Full pull: fetch all tasks and write local files
@@ -66,10 +85,7 @@ pub async fn link(url: Option<&str>, token: Option<&str>, project_id: &str, cust
         auto_run: Default::default(),
     })?;
 
-    println!(
-        "{}",
-        format!("✓ {pull_result}").green()
-    );
+    println!("{}", format!("✓ {pull_result}").green());
 
     Ok(())
 }
@@ -85,7 +101,10 @@ pub async fn unlink(url: Option<&str>, token: Option<&str>) -> Result<()> {
                 match client.remove_workspace(&entry.project_id, ws_id).await {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}", format!("⚠ 服务端工作区移除失败（将继续取消本地关联）: {e}").yellow());
+                        eprintln!(
+                            "{}",
+                            format!("⚠ 服务端工作区移除失败（将继续取消本地关联）: {e}").yellow()
+                        );
                     }
                 }
             }
@@ -98,7 +117,12 @@ pub async fn unlink(url: Option<&str>, token: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-pub async fn list(url: Option<&str>, token: Option<&str>, json: bool, project_id: &str) -> Result<()> {
+pub async fn list(
+    url: Option<&str>,
+    token: Option<&str>,
+    json: bool,
+    project_id: &str,
+) -> Result<()> {
     let client = make_client(url, token)?;
     let workspaces = client.list_workspaces(project_id).await?;
     if json {
@@ -138,7 +162,10 @@ pub async fn info(url: Option<&str>, token: Option<&str>, json: bool) -> Result<
             if json {
                 println!("null");
             } else {
-                println!("{}", "当前目录未关联到任何项目。使用 `yan-pm link <projectId>` 关联。".yellow());
+                println!(
+                    "{}",
+                    "当前目录未关联到任何项目。使用 `yan-pm link <projectId>` 关联。".yellow()
+                );
             }
         }
     }

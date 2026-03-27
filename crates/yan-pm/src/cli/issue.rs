@@ -1,8 +1,8 @@
 use anyhow::Result;
 
+use super::make_client;
 use crate::api::client::{CreateIssueData, IssueListParams, UpdateIssueData};
 use crate::output;
-use super::make_client;
 
 pub async fn list(
     url: Option<&str>,
@@ -57,7 +57,11 @@ pub async fn create(
     if json {
         println!("{}", serde_json::to_string_pretty(&issue)?);
     } else {
-        println!("✓ 需求已创建: {} [{}]", issue.title, &issue.id[..8.min(issue.id.len())]);
+        println!(
+            "✓ 需求已创建: {} [{}]",
+            issue.title,
+            &issue.id[..8.min(issue.id.len())]
+        );
     }
     Ok(())
 }

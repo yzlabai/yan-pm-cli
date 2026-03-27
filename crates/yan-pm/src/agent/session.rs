@@ -1,6 +1,6 @@
 use std::process::Stdio;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use agent_client_protocol::{self as acp, Agent as _};
 use anyhow::Result;
@@ -8,7 +8,7 @@ use colored::Colorize;
 use futures::lock::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use super::registry::{AgentDefinition, is_command_available};
+use super::registry::{is_command_available, AgentDefinition};
 
 /// Result from agent execution
 #[derive(Debug)]
@@ -61,19 +61,20 @@ impl acp::Client for YanPmAcpClient {
         match self.policy {
             PermissionPolicy::AutoApprove => {
                 if self.verbose {
-                    let tool_name = args
-                        .tool_call
-                        .fields
-                        .title
-                        .as_deref()
-                        .unwrap_or("unknown");
+                    let tool_name = args.tool_call.fields.title.as_deref().unwrap_or("unknown");
                     eprintln!("{}", format!("  [auto-approve] {tool_name}").dimmed());
                 }
                 // Find the first AllowOnce/AllowAlways option, or fallback to first option
                 let option_id = args
                     .options
                     .iter()
-                    .find(|o| matches!(o.kind, acp::PermissionOptionKind::AllowOnce | acp::PermissionOptionKind::AllowAlways))
+                    .find(|o| {
+                        matches!(
+                            o.kind,
+                            acp::PermissionOptionKind::AllowOnce
+                                | acp::PermissionOptionKind::AllowAlways
+                        )
+                    })
                     .or(args.options.first())
                     .map(|o| o.option_id.clone());
                 match option_id {
@@ -96,26 +97,24 @@ impl acp::Client for YanPmAcpClient {
     async fn session_notification(&self, args: acp::SessionNotification) -> acp::Result<()> {
         match args.update {
             acp::SessionUpdate::AgentMessageChunk(chunk) => {
-                match &chunk.content {
-                    acp::ContentBlock::Text(text_content) => {
-                        let mut output = self.output.lock().await;
-                        // Cap output buffer at 1 MB to prevent OOM from runaway agents
-                        const MAX_OUTPUT: usize = 1_048_576;
-                        if output.len() < MAX_OUTPUT {
-                            let remaining = MAX_OUTPUT - output.len();
-                            if text_content.text.len() <= remaining {
-                                output.push_str(&text_content.text);
-                            } else {
-                                // Safe UTF-8 truncation to avoid panic on multi-byte chars
-                                let safe = crate::output::format::truncate_utf8(&text_content.text, remaining);
-                                output.push_str(safe);
-                            }
-                        }
-                        if self.verbose {
-                            eprint!("{}", text_content.text);
+                if let acp::ContentBlock::Text(text_content) = &chunk.content {
+                    let mut output = self.output.lock().await;
+                    // Cap output buffer at 1 MB to prevent OOM from runaway agents
+                    const MAX_OUTPUT: usize = 1_048_576;
+                    if output.len() < MAX_OUTPUT {
+                        let remaining = MAX_OUTPUT - output.len();
+                        if text_content.text.len() <= remaining {
+                            output.push_str(&text_content.text);
+                        } else {
+                            // Safe UTF-8 truncation to avoid panic on multi-byte chars
+                            let safe =
+                                crate::output::format::truncate_utf8(&text_content.text, remaining);
+                            output.push_str(safe);
                         }
                     }
-                    _ => {}
+                    if self.verbose {
+                        eprint!("{}", text_content.text);
+                    }
                 }
             }
             acp::SessionUpdate::ToolCall(tc) => {
@@ -140,10 +139,7 @@ impl acp::Client for YanPmAcpClient {
 ///
 /// Spawns the agent process, connects via ACP over stdio, sends the prompt,
 /// and collects the result.
-pub async fn execute_agent(
-    agent: &AgentDefinition,
-    options: AgentOptions,
-) -> Result<AgentResult> {
+pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Result<AgentResult> {
     if !is_command_available(&agent.command).await {
         return Ok(AgentResult {
             success: false,
@@ -238,65 +234,59 @@ pub async fn execute_agent(
     let verbose = options.verbose;
 
     const ACP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
-    let acp_future = local_set
-        .run_until(async move {
-            let outgoing = stdin.compat_write();
-            let incoming = stdout.compat();
+    let acp_future = local_set.run_until(async move {
+        let outgoing = stdin.compat_write();
+        let incoming = stdout.compat();
 
-            let (conn, io_task) =
-                acp::ClientSideConnection::new(client_handler, outgoing, incoming, |fut| {
-                    tokio::task::spawn_local(fut);
-                });
+        let (conn, io_task) =
+            acp::ClientSideConnection::new(client_handler, outgoing, incoming, |fut| {
+                tokio::task::spawn_local(fut);
+            });
 
-            // Run I/O in background
-            tokio::task::spawn_local(io_task);
+        // Run I/O in background
+        tokio::task::spawn_local(io_task);
 
-            // Initialize
-            let init_result = conn
-                .initialize(
-                    acp::InitializeRequest::new(acp::ProtocolVersion::V1).client_info(
-                        acp::Implementation::new("yan-pm", env!("CARGO_PKG_VERSION"))
-                            .title("YanChat PM"),
-                    ),
-                )
-                .await;
+        // Initialize
+        let init_result = conn
+            .initialize(
+                acp::InitializeRequest::new(acp::ProtocolVersion::V1).client_info(
+                    acp::Implementation::new("yan-pm", env!("CARGO_PKG_VERSION"))
+                        .title("YanChat PM"),
+                ),
+            )
+            .await;
 
-            if let Err(e) = init_result {
-                return Err(anyhow::anyhow!("ACP 初始化失败: {e}"));
-            }
+        if let Err(e) = init_result {
+            return Err(anyhow::anyhow!("ACP 初始化失败: {e}"));
+        }
 
-            // Create session
-            let session_result = conn
-                .new_session(acp::NewSessionRequest::new(
-                    std::path::PathBuf::from(&cwd),
-                ))
-                .await;
+        // Create session
+        let session_result = conn
+            .new_session(acp::NewSessionRequest::new(std::path::PathBuf::from(&cwd)))
+            .await;
 
-            let session = match session_result {
-                Ok(s) => s,
-                Err(e) => return Err(anyhow::anyhow!("ACP 创建会话失败: {e}")),
-            };
+        let session = match session_result {
+            Ok(s) => s,
+            Err(e) => return Err(anyhow::anyhow!("ACP 创建会话失败: {e}")),
+        };
 
-            if verbose {
-                eprintln!(
-                    "{}",
-                    format!("  [session] {}", session.session_id).dimmed()
-                );
-            }
+        if verbose {
+            eprintln!("{}", format!("  [session] {}", session.session_id).dimmed());
+        }
 
-            // Send prompt
-            let prompt_result = conn
-                .prompt(acp::PromptRequest::new(
-                    session.session_id.clone(),
-                    vec![prompt.into()],
-                ))
-                .await;
+        // Send prompt
+        let prompt_result = conn
+            .prompt(acp::PromptRequest::new(
+                session.session_id.clone(),
+                vec![prompt.into()],
+            ))
+            .await;
 
-            match prompt_result {
-                Ok(resp) => Ok((session.session_id, resp)),
-                Err(e) => Err(anyhow::anyhow!("ACP prompt 失败: {e}")),
-            }
-        });
+        match prompt_result {
+            Ok(resp) => Ok((session.session_id, resp)),
+            Err(e) => Err(anyhow::anyhow!("ACP prompt 失败: {e}")),
+        }
+    });
 
     let acp_result = match tokio::time::timeout(ACP_TIMEOUT, acp_future).await {
         Ok(result) => result,
@@ -354,7 +344,10 @@ pub async fn execute_agent(
                     String::new()
                 },
                 if !stderr_text.is_empty() {
-                    format!("\n\nstderr:\n{}", crate::output::format::truncate_utf8(&stderr_text, 1000))
+                    format!(
+                        "\n\nstderr:\n{}",
+                        crate::output::format::truncate_utf8(&stderr_text, 1000)
+                    )
                 } else {
                     String::new()
                 }

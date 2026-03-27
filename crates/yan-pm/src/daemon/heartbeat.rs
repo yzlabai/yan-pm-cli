@@ -23,7 +23,9 @@ impl HeartbeatManager {
                 tracing::debug!("Heartbeat OK: project={project_id} workspace={workspace_id}");
             }
             Err(e) => {
-                tracing::warn!("Heartbeat failed: project={project_id} workspace={workspace_id}: {e}");
+                tracing::warn!(
+                    "Heartbeat failed: project={project_id} workspace={workspace_id}: {e}"
+                );
             }
         }
     }

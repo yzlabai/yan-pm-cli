@@ -42,7 +42,11 @@ fn detect_repo_url(work_dir: &Path) -> Option<String> {
         return None;
     }
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if url.is_empty() { None } else { Some(url) }
+    if url.is_empty() {
+        None
+    } else {
+        Some(url)
+    }
 }
 
 /// 粗粒度技术栈检测
@@ -123,25 +127,25 @@ fn read_package_json_deps(work_dir: &Path) -> Option<Vec<String>> {
 
 /// 从 docker-compose 文件检测常用服务
 fn detect_compose_services(work_dir: &Path, stack: &mut Vec<String>) {
-    let candidates = ["docker-compose.yml", "docker-compose.yaml", "docker-compose.dev.yml"];
+    let candidates = [
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.dev.yml",
+    ];
     for name in candidates {
         let path = work_dir.join(name);
         if let Ok(content) = std::fs::read_to_string(&path) {
             let content_lower = content.to_lowercase();
-            if content_lower.contains("postgres") {
-                if !stack.contains(&"PostgreSQL".to_string()) {
-                    stack.push("PostgreSQL".to_string());
-                }
+            if content_lower.contains("postgres") && !stack.contains(&"PostgreSQL".to_string()) {
+                stack.push("PostgreSQL".to_string());
             }
-            if content_lower.contains("redis") || content_lower.contains("valkey") {
-                if !stack.contains(&"Redis".to_string()) {
-                    stack.push("Redis".to_string());
-                }
+            if (content_lower.contains("redis") || content_lower.contains("valkey"))
+                && !stack.contains(&"Redis".to_string())
+            {
+                stack.push("Redis".to_string());
             }
-            if content_lower.contains("minio") {
-                if !stack.contains(&"MinIO".to_string()) {
-                    stack.push("MinIO".to_string());
-                }
+            if content_lower.contains("minio") && !stack.contains(&"MinIO".to_string()) {
+                stack.push("MinIO".to_string());
             }
         }
     }

@@ -65,7 +65,9 @@ pub fn parse_task_file(content: &str) -> Result<(TaskFrontmatter, String)> {
     let yaml_str = &after_first[..close_idx].trim();
     let body_start = 3 + close_idx + 4; // skip "---" + "\n---"
     let body = if body_start < trimmed.len() {
-        trimmed[body_start..].trim_start_matches(&['\r', '\n'][..]).to_string()
+        trimmed[body_start..]
+            .trim_start_matches(&['\r', '\n'][..])
+            .to_string()
     } else {
         String::new()
     };
@@ -246,7 +248,10 @@ Bug description here.
     #[test]
     fn test_slugify() {
         assert_eq!(slugify("Fix Login Bug"), "fix-login-bug");
-        assert_eq!(slugify("Add search API endpoint"), "add-search-api-endpoint");
+        assert_eq!(
+            slugify("Add search API endpoint"),
+            "add-search-api-endpoint"
+        );
         assert_eq!(slugify("hello   world"), "hello-world");
         assert_eq!(slugify("Special!@#Characters"), "special-characters");
         assert_eq!(slugify("  leading spaces  "), "leading-spaces");
@@ -266,8 +271,14 @@ Bug description here.
 
     #[test]
     fn test_task_filename() {
-        assert_eq!(task_filename(Some(1), "Fix login bug"), "001-fix-login-bug.md");
-        assert_eq!(task_filename(Some(12), "Add search API"), "012-add-search-api.md");
+        assert_eq!(
+            task_filename(Some(1), "Fix login bug"),
+            "001-fix-login-bug.md"
+        );
+        assert_eq!(
+            task_filename(Some(12), "Add search API"),
+            "012-add-search-api.md"
+        );
         assert_eq!(task_filename(None, "New task"), "000-new-task.md");
     }
 

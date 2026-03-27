@@ -45,7 +45,6 @@ struct ToolDef {
     input_schema: Value,
 }
 
-
 fn make_tool(name: &str, desc: &str, props: Value, required: Vec<&str>) -> ToolDef {
     ToolDef {
         name: name.into(),
@@ -60,81 +59,151 @@ fn make_tool(name: &str, desc: &str, props: Value, required: Vec<&str>) -> ToolD
 
 fn tool_definitions() -> Vec<ToolDef> {
     vec![
-        make_tool("list_projects", "列出当前用户参与的所有项目", serde_json::json!({}), vec![]),
-        make_tool("get_project", "获取项目详情，包括成员列表", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" }
-        }), vec!["projectId"]),
-        make_tool("list_tasks", "列出项目任务，可按状态和关键词筛选", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "status": { "type": "string", "description": "按状态筛选", "enum": ["todo", "in_progress", "in_review", "done", "cancelled"] },
-            "keyword": { "type": "string", "description": "按标题关键词搜索" }
-        }), vec!["projectId"]),
-        make_tool("get_task", "获取任务详情", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "taskId": { "type": "string", "description": "任务 ID" }
-        }), vec!["projectId", "taskId"]),
-        make_tool("create_task", "在项目中创建新任务", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "title": { "type": "string", "description": "任务标题" },
-            "description": { "type": "string", "description": "任务描述" },
-            "type": { "type": "string", "enum": ["feature", "bug", "improvement", "task"] },
-            "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
-            "assigneeId": { "type": "string", "description": "负责人 ID" }
-        }), vec!["projectId", "title"]),
-        make_tool("update_task", "更新任务", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "taskId": { "type": "string", "description": "任务 ID" },
-            "title": { "type": "string" },
-            "status": { "type": "string", "enum": ["todo", "in_progress", "in_review", "done", "cancelled"] },
-            "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
-            "assigneeId": { "type": "string" },
-            "type": { "type": "string", "enum": ["feature", "bug", "improvement", "task"] }
-        }), vec!["projectId", "taskId"]),
-        make_tool("add_comment", "添加任务评论", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "taskId": { "type": "string", "description": "任务 ID" },
-            "content": { "type": "string", "description": "评论内容" }
-        }), vec!["projectId", "taskId", "content"]),
-        make_tool("get_report", "生成 AI 项目报告", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" }
-        }), vec!["projectId"]),
-        make_tool("decompose_task", "AI 任务分解", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "taskId": { "type": "string", "description": "任务 ID" }
-        }), vec!["projectId", "taskId"]),
-        make_tool("get_issue", "获取需求详情，包含关联任务和进度", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "issueId": { "type": "string", "description": "需求 ID" }
-        }), vec!["projectId", "issueId"]),
-        make_tool("list_issues", "列出项目需求", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "status": { "type": "string", "enum": ["open", "analyzing", "tasks_created", "needs_manual", "cancelled"] },
-            "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
-            "keyword": { "type": "string", "description": "按标题关键词搜索" }
-        }), vec!["projectId"]),
-        make_tool("create_issue", "创建需求", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "title": { "type": "string", "description": "需求标题" },
-            "description": { "type": "string" },
-            "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
-            "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
-            "assigneeId": { "type": "string" },
-            "labels": { "type": "array", "items": { "type": "string" } }
-        }), vec!["projectId", "title"]),
-        make_tool("update_issue", "更新需求", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "issueId": { "type": "string", "description": "需求 ID" },
-            "title": { "type": "string" },
-            "status": { "type": "string", "enum": ["open", "analyzing", "tasks_created", "needs_manual", "cancelled"] },
-            "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
-            "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
-            "assigneeId": { "type": "string" },
-            "labels": { "type": "array", "items": { "type": "string" } }
-        }), vec!["projectId", "issueId"]),
-        make_tool("decompose_issue", "AI 需求分解为任务", serde_json::json!({
-            "projectId": { "type": "string", "description": "项目 slug 或 ID" },
-            "issueId": { "type": "string", "description": "需求 ID" }
-        }), vec!["projectId", "issueId"]),
+        make_tool(
+            "list_projects",
+            "列出当前用户参与的所有项目",
+            serde_json::json!({}),
+            vec![],
+        ),
+        make_tool(
+            "get_project",
+            "获取项目详情，包括成员列表",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" }
+            }),
+            vec!["projectId"],
+        ),
+        make_tool(
+            "list_tasks",
+            "列出项目任务，可按状态和关键词筛选",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "status": { "type": "string", "description": "按状态筛选", "enum": ["todo", "in_progress", "in_review", "done", "cancelled"] },
+                "keyword": { "type": "string", "description": "按标题关键词搜索" }
+            }),
+            vec!["projectId"],
+        ),
+        make_tool(
+            "get_task",
+            "获取任务详情",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "taskId": { "type": "string", "description": "任务 ID" }
+            }),
+            vec!["projectId", "taskId"],
+        ),
+        make_tool(
+            "create_task",
+            "在项目中创建新任务",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "title": { "type": "string", "description": "任务标题" },
+                "description": { "type": "string", "description": "任务描述" },
+                "type": { "type": "string", "enum": ["feature", "bug", "improvement", "task"] },
+                "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
+                "assigneeId": { "type": "string", "description": "负责人 ID" }
+            }),
+            vec!["projectId", "title"],
+        ),
+        make_tool(
+            "update_task",
+            "更新任务",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "taskId": { "type": "string", "description": "任务 ID" },
+                "title": { "type": "string" },
+                "status": { "type": "string", "enum": ["todo", "in_progress", "in_review", "done", "cancelled"] },
+                "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
+                "assigneeId": { "type": "string" },
+                "type": { "type": "string", "enum": ["feature", "bug", "improvement", "task"] }
+            }),
+            vec!["projectId", "taskId"],
+        ),
+        make_tool(
+            "add_comment",
+            "添加任务评论",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "taskId": { "type": "string", "description": "任务 ID" },
+                "content": { "type": "string", "description": "评论内容" }
+            }),
+            vec!["projectId", "taskId", "content"],
+        ),
+        make_tool(
+            "get_report",
+            "生成 AI 项目报告",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" }
+            }),
+            vec!["projectId"],
+        ),
+        make_tool(
+            "decompose_task",
+            "AI 任务分解",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "taskId": { "type": "string", "description": "任务 ID" }
+            }),
+            vec!["projectId", "taskId"],
+        ),
+        make_tool(
+            "get_issue",
+            "获取需求详情，包含关联任务和进度",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "issueId": { "type": "string", "description": "需求 ID" }
+            }),
+            vec!["projectId", "issueId"],
+        ),
+        make_tool(
+            "list_issues",
+            "列出项目需求",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "status": { "type": "string", "enum": ["open", "analyzing", "tasks_created", "needs_manual", "cancelled"] },
+                "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
+                "keyword": { "type": "string", "description": "按标题关键词搜索" }
+            }),
+            vec!["projectId"],
+        ),
+        make_tool(
+            "create_issue",
+            "创建需求",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "title": { "type": "string", "description": "需求标题" },
+                "description": { "type": "string" },
+                "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
+                "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
+                "assigneeId": { "type": "string" },
+                "labels": { "type": "array", "items": { "type": "string" } }
+            }),
+            vec!["projectId", "title"],
+        ),
+        make_tool(
+            "update_issue",
+            "更新需求",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "issueId": { "type": "string", "description": "需求 ID" },
+                "title": { "type": "string" },
+                "status": { "type": "string", "enum": ["open", "analyzing", "tasks_created", "needs_manual", "cancelled"] },
+                "priority": { "type": "string", "enum": ["urgent", "high", "medium", "low"] },
+                "type": { "type": "string", "enum": ["feature", "bug", "improvement", "question"] },
+                "assigneeId": { "type": "string" },
+                "labels": { "type": "array", "items": { "type": "string" } }
+            }),
+            vec!["projectId", "issueId"],
+        ),
+        make_tool(
+            "decompose_issue",
+            "AI 需求分解为任务",
+            serde_json::json!({
+                "projectId": { "type": "string", "description": "项目 slug 或 ID" },
+                "issueId": { "type": "string", "description": "需求 ID" }
+            }),
+            vec!["projectId", "issueId"],
+        ),
     ]
 }
 
@@ -187,187 +256,224 @@ fn require_str(params: &Value, key: &str) -> Result<String, String> {
 }
 
 async fn handle_tool_call(client: &ApiClient, name: &str, params: &Value) -> Value {
-    let result: Result<Value, String> = (|| async {
+    let result: Result<Value, String> = async {
         match name {
-        "list_projects" => client
-            .list_projects()
-            .await
-            .map(|v| tool_result(&v))
-            .map_err(|e| e.to_string()),
-
-        "get_project" => {
-            let pid = require_str(params, "projectId")?;
-            client
-                .get_project(&pid)
+            "list_projects" => client
+                .list_projects()
                 .await
                 .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+                .map_err(|e| e.to_string()),
 
-        "list_tasks" => {
-            let pid = require_str(params, "projectId")?;
-            let status = get_str(params, "status").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
-            let keyword = get_str(params, "keyword");
-            client
-                .list_tasks(&pid, &TaskListParams { status, search: keyword, ..Default::default() })
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "get_project" => {
+                let pid = require_str(params, "projectId")?;
+                client
+                    .get_project(&pid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "get_task" => {
-            let pid = require_str(params, "projectId")?;
-            let tid = require_str(params, "taskId")?;
-            client
-                .get_task(&pid, &tid)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "list_tasks" => {
+                let pid = require_str(params, "projectId")?;
+                let status = get_str(params, "status")
+                    .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
+                let keyword = get_str(params, "keyword");
+                client
+                    .list_tasks(
+                        &pid,
+                        &TaskListParams {
+                            status,
+                            search: keyword,
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "create_task" => {
-            let pid = require_str(params, "projectId")?;
-            let title = require_str(params, "title")?;
-            let data = CreateTaskData {
-                title,
-                description: get_str(params, "description"),
-                task_type: get_str(params, "type").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                priority: get_str(params, "priority").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                assignee_id: get_str(params, "assigneeId"),
-                due_date: None,
-                tags: None,
-            };
-            client
-                .create_task(&pid, &data)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "get_task" => {
+                let pid = require_str(params, "projectId")?;
+                let tid = require_str(params, "taskId")?;
+                client
+                    .get_task(&pid, &tid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "update_task" => {
-            let pid = require_str(params, "projectId")?;
-            let tid = require_str(params, "taskId")?;
-            let data = crate::api::UpdateTaskData {
-                title: get_str(params, "title"),
-                status: get_str(params, "status").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                priority: get_str(params, "priority").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                assignee_id: get_str(params, "assigneeId"),
-                task_type: get_str(params, "type").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-            };
-            client
-                .update_task(&pid, &tid, &data)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "create_task" => {
+                let pid = require_str(params, "projectId")?;
+                let title = require_str(params, "title")?;
+                let data = CreateTaskData {
+                    title,
+                    description: get_str(params, "description"),
+                    task_type: get_str(params, "type")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    priority: get_str(params, "priority")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    assignee_id: get_str(params, "assigneeId"),
+                    due_date: None,
+                    tags: None,
+                };
+                client
+                    .create_task(&pid, &data)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "add_comment" => {
-            let pid = require_str(params, "projectId")?;
-            let tid = require_str(params, "taskId")?;
-            let content = require_str(params, "content")?;
-            client
-                .add_comment(&pid, &tid, &content)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "update_task" => {
+                let pid = require_str(params, "projectId")?;
+                let tid = require_str(params, "taskId")?;
+                let data = crate::api::UpdateTaskData {
+                    title: get_str(params, "title"),
+                    status: get_str(params, "status")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    priority: get_str(params, "priority")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    assignee_id: get_str(params, "assigneeId"),
+                    task_type: get_str(params, "type")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                };
+                client
+                    .update_task(&pid, &tid, &data)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "get_report" => {
-            let pid = require_str(params, "projectId")?;
-            client
-                .generate_report(&pid)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "add_comment" => {
+                let pid = require_str(params, "projectId")?;
+                let tid = require_str(params, "taskId")?;
+                let content = require_str(params, "content")?;
+                client
+                    .add_comment(&pid, &tid, &content)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "decompose_task" => {
-            let pid = require_str(params, "projectId")?;
-            let tid = require_str(params, "taskId")?;
-            client
-                .decompose_task(&pid, &tid)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "get_report" => {
+                let pid = require_str(params, "projectId")?;
+                client
+                    .generate_report(&pid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "get_issue" => {
-            let pid = require_str(params, "projectId")?;
-            let iid = require_str(params, "issueId")?;
-            client
-                .get_issue(&pid, &iid)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "decompose_task" => {
+                let pid = require_str(params, "projectId")?;
+                let tid = require_str(params, "taskId")?;
+                client
+                    .decompose_task(&pid, &tid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "list_issues" => {
-            let pid = require_str(params, "projectId")?;
-            let status = get_str(params, "status").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
-            let issue_type = get_str(params, "type").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
-            let keyword = get_str(params, "keyword");
-            client
-                .list_issues(&pid, &IssueListParams { status, issue_type, search: keyword, ..Default::default() })
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "get_issue" => {
+                let pid = require_str(params, "projectId")?;
+                let iid = require_str(params, "issueId")?;
+                client
+                    .get_issue(&pid, &iid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "create_issue" => {
-            let pid = require_str(params, "projectId")?;
-            let title = require_str(params, "title")?;
-            let labels = params.get("labels").and_then(|v| {
-                v.as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
-            });
-            let data = CreateIssueData {
-                title,
-                description: get_str(params, "description"),
-                issue_type: get_str(params, "type").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                priority: get_str(params, "priority").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                assignee_id: get_str(params, "assigneeId"),
-                labels,
-            };
-            client
-                .create_issue(&pid, &data)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "list_issues" => {
+                let pid = require_str(params, "projectId")?;
+                let status = get_str(params, "status")
+                    .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
+                let issue_type = get_str(params, "type")
+                    .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok());
+                let keyword = get_str(params, "keyword");
+                client
+                    .list_issues(
+                        &pid,
+                        &IssueListParams {
+                            status,
+                            issue_type,
+                            search: keyword,
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "update_issue" => {
-            let pid = require_str(params, "projectId")?;
-            let iid = require_str(params, "issueId")?;
-            let labels = params.get("labels").and_then(|v| {
-                v.as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
-            });
-            let data = crate::api::UpdateIssueData {
-                title: get_str(params, "title"),
-                status: get_str(params, "status").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                priority: get_str(params, "priority").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                issue_type: get_str(params, "type").and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
-                assignee_id: get_str(params, "assigneeId"),
-                labels,
-            };
-            client
-                .update_issue(&pid, &iid, &data)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "create_issue" => {
+                let pid = require_str(params, "projectId")?;
+                let title = require_str(params, "title")?;
+                let labels = params.get("labels").and_then(|v| {
+                    v.as_array().map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
+                });
+                let data = CreateIssueData {
+                    title,
+                    description: get_str(params, "description"),
+                    issue_type: get_str(params, "type")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    priority: get_str(params, "priority")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    assignee_id: get_str(params, "assigneeId"),
+                    labels,
+                };
+                client
+                    .create_issue(&pid, &data)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        "decompose_issue" => {
-            let pid = require_str(params, "projectId")?;
-            let iid = require_str(params, "issueId")?;
-            client
-                .decompose_issue(&pid, &iid)
-                .await
-                .map(|v| tool_result(&v))
-                .map_err(|e| e.to_string())
-        }
+            "update_issue" => {
+                let pid = require_str(params, "projectId")?;
+                let iid = require_str(params, "issueId")?;
+                let labels = params.get("labels").and_then(|v| {
+                    v.as_array().map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(String::from))
+                            .collect()
+                    })
+                });
+                let data = crate::api::UpdateIssueData {
+                    title: get_str(params, "title"),
+                    status: get_str(params, "status")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    priority: get_str(params, "priority")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    issue_type: get_str(params, "type")
+                        .and_then(|s| serde_json::from_value(serde_json::json!(s)).ok()),
+                    assignee_id: get_str(params, "assigneeId"),
+                    labels,
+                };
+                client
+                    .update_issue(&pid, &iid, &data)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
 
-        _ => Err(format!("Unknown tool: {name}")),
+            "decompose_issue" => {
+                let pid = require_str(params, "projectId")?;
+                let iid = require_str(params, "issueId")?;
+                client
+                    .decompose_issue(&pid, &iid)
+                    .await
+                    .map(|v| tool_result(&v))
+                    .map_err(|e| e.to_string())
+            }
+
+            _ => Err(format!("Unknown tool: {name}")),
+        }
     }
-    })().await;
+    .await;
 
     match result {
         Ok(v) => v,
@@ -384,11 +490,13 @@ pub async fn start_mcp_server() -> Result<()> {
         );
     }
 
-    let client = ApiClient::new(&resolved.base_url, &resolved.token)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let client =
+        ApiClient::new(&resolved.base_url, &resolved.token).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // Validate token by making a test API call
-    client.list_projects().await
+    client
+        .list_projects()
+        .await
         .map_err(|e| anyhow::anyhow!("Token 验证失败: {e}\n请检查 YAN_PM_TOKEN 是否有效。"))?;
 
     // Start workspace heartbeat (best-effort, like TS version)
@@ -528,6 +636,10 @@ async fn start_workspace_heartbeat(client: &ApiClient) -> Option<(String, String
         .ok()?;
 
     let workspace_id = ws.id;
-    eprintln!("📡 工作区心跳已启动 (project={}, workspace={})", link.project_id, &workspace_id[..8.min(workspace_id.len())]);
+    eprintln!(
+        "📡 工作区心跳已启动 (project={}, workspace={})",
+        link.project_id,
+        &workspace_id[..8.min(workspace_id.len())]
+    );
     Some((link.project_id, workspace_id))
 }

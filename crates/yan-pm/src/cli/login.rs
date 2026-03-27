@@ -55,14 +55,16 @@ async fn do_login(base_url: &str) -> Result<()> {
 
     // Try to open browser
     let _ = open::that(open_url);
-    println!("{}", "已自动打开浏览器，如未打开请手动访问上方链接".dimmed());
+    println!(
+        "{}",
+        "已自动打开浏览器，如未打开请手动访问上方链接".dimmed()
+    );
 
     println!("{}", "等待授权...".dimmed());
 
     let base_interval = std::time::Duration::from_secs(device.interval);
     let mut current_interval = base_interval;
-    let expires_at = std::time::Instant::now()
-        + std::time::Duration::from_secs(device.expires_in);
+    let expires_at = std::time::Instant::now() + std::time::Duration::from_secs(device.expires_in);
 
     loop {
         if std::time::Instant::now() > expires_at {

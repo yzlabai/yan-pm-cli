@@ -1,14 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use tokio::task::JoinHandle;
 use tokio::time;
 
-use crate::agent::{self, AgentOptions, AgentResult, find_agent};
+use crate::agent::{self, find_agent, AgentOptions, AgentResult};
 use crate::api::client::{ApiClient, UpdateTaskData};
 use crate::api::types::{ExecutionReport, TaskStatus};
 use crate::local::directory::{AutoRunConfig, LocalDirectory};
@@ -117,9 +117,16 @@ impl AutoRunner {
         }
 
         // Check concurrency
-        let active_count = slot.running.iter().filter(|t| {
-            t.thread_handle.as_ref().map(|h| !h.is_finished()).unwrap_or(false)
-        }).count();
+        let active_count = slot
+            .running
+            .iter()
+            .filter(|t| {
+                t.thread_handle
+                    .as_ref()
+                    .map(|h| !h.is_finished())
+                    .unwrap_or(false)
+            })
+            .count();
         if active_count >= slot.config.concurrency as usize {
             return Ok(());
         }
@@ -127,7 +134,11 @@ impl AutoRunner {
         // Check budget
         if let Some(budget) = slot.config.budget {
             if slot.total_cost >= budget {
-                tracing::info!("AutoRunner: budget exhausted for {path} (${:.2} / ${:.2})", slot.total_cost, budget);
+                tracing::info!(
+                    "AutoRunner: budget exhausted for {path} (${:.2} / ${:.2})",
+                    slot.total_cost,
+                    budget
+                );
                 return Ok(());
             }
         }
@@ -140,7 +151,12 @@ impl AutoRunner {
             .iter()
             .filter(|t| t.frontmatter.status == TaskStatus::Todo)
             .filter(|t| t.frontmatter.id.is_some()) // Must have server ID
-            .filter(|t| !t.frontmatter.id.as_ref().is_some_and(|id| failed_ids.contains(id)))
+            .filter(|t| {
+                !t.frontmatter
+                    .id
+                    .as_ref()
+                    .is_some_and(|id| failed_ids.contains(id))
+            })
             .collect();
 
         // Filter out tasks with unfinished dependencies
@@ -152,7 +168,10 @@ impl AutoRunner {
                 .collect();
             todo_tasks.retain(|t| {
                 t.frontmatter.depends_on.is_empty()
-                    || t.frontmatter.depends_on.iter().all(|dep| done_ids.contains(dep.as_str()))
+                    || t.frontmatter
+                        .depends_on
+                        .iter()
+                        .all(|dep| done_ids.contains(dep.as_str()))
             });
         }
 
@@ -160,7 +179,10 @@ impl AutoRunner {
         if !slot.config.filter_priority.is_empty() {
             todo_tasks.retain(|t| {
                 let pri_str = t.frontmatter.priority.to_string();
-                slot.config.filter_priority.iter().any(|f| f.to_lowercase() == pri_str)
+                slot.config
+                    .filter_priority
+                    .iter()
+                    .any(|f| f.to_lowercase() == pri_str)
             });
         }
 
@@ -191,7 +213,11 @@ impl AutoRunner {
         // Try to lock task
         let workspace_entry = crate::config::find_workspace_link(Some(Path::new(&workspace_path)));
         let ws_id = workspace_entry.and_then(|w| w.workspace_id);
-        match self.client.lock_task(&project_id, &task_id, ws_id.as_deref()).await {
+        match self
+            .client
+            .lock_task(&project_id, &task_id, ws_id.as_deref())
+            .await
+        {
             Ok(_) => {}
             Err(e) => {
                 if e.is_conflict() {
@@ -204,12 +230,23 @@ impl AutoRunner {
         }
 
         // Transition to in_progress
-        let _ = self.client.update_task(&project_id, &task_id, &UpdateTaskData {
-            status: Some(TaskStatus::InProgress),
-            ..Default::default()
-        }).await;
+        let _ = self
+            .client
+            .update_task(
+                &project_id,
+                &task_id,
+                &UpdateTaskData {
+                    status: Some(TaskStatus::InProgress),
+                    ..Default::default()
+                },
+            )
+            .await;
 
-        tracing::info!("AutoRunner: starting task {} in {}", task_id, workspace_path);
+        tracing::info!(
+            "AutoRunner: starting task {} in {}",
+            task_id,
+            workspace_path
+        );
 
         // Resolve agent
         let agent = match find_agent(&agent_name) {
@@ -257,7 +294,9 @@ impl AutoRunner {
         // (ACP uses LocalSet which is !Send, can't use tokio::spawn)
         let cwd = workspace_path.clone();
         let agent_clone = agent.clone();
-        let remaining_budget = self.slots.get(path)
+        let remaining_budget = self
+            .slots
+            .get(path)
             .and_then(|s| s.config.budget.map(|b| (b - s.total_cost).max(0.0)));
         let handle = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -359,17 +398,21 @@ impl AutoRunner {
                     slot.failed_task_ids.insert(task.task_id.clone());
                     TaskStatus::Todo
                 };
-                let _ = self.client.update_task(
-                    &task.project_id,
-                    &task.task_id,
-                    &UpdateTaskData {
-                        status: Some(new_status),
-                        ..Default::default()
-                    },
-                ).await;
+                let _ = self
+                    .client
+                    .update_task(
+                        &task.project_id,
+                        &task.task_id,
+                        &UpdateTaskData {
+                            status: Some(new_status),
+                            ..Default::default()
+                        },
+                    )
+                    .await;
 
                 // Add comment
-                let cost_str = result.cost_usd
+                let cost_str = result
+                    .cost_usd
                     .map(|c| format!(" | ${:.4}", c))
                     .unwrap_or_default();
                 let emoji = if result.success { "✅" } else { "❌" };
@@ -378,7 +421,10 @@ impl AutoRunner {
                     "{emoji} AutoRunner {}{cost_str}\n\n{summary_truncated}",
                     if result.success { "完成" } else { "失败" },
                 );
-                let _ = self.client.add_comment(&task.project_id, &task.task_id, &comment).await;
+                let _ = self
+                    .client
+                    .add_comment(&task.project_id, &task.task_id, &comment)
+                    .await;
 
                 // Report execution (best-effort, failure does not block unlock)
                 let finished_at = chrono::Utc::now();
@@ -386,18 +432,37 @@ impl AutoRunner {
                     workspace_id: task.workspace_id.clone(),
                     started_at: task.started_at.to_rfc3339(),
                     finished_at: Some(finished_at.to_rfc3339()),
-                    status: if result.success { "succeeded" } else { "failed" }.to_string(),
+                    status: if result.success {
+                        "succeeded"
+                    } else {
+                        "failed"
+                    }
+                    .to_string(),
                     exit_code: Some(result.exit_code),
                     cost_usd: result.cost_usd,
                     summary: Some(crate::output::truncate_utf8(&result.summary, 500).to_string()),
-                    error_message: if result.success { None } else { Some(crate::output::truncate_utf8(&result.summary, 500).to_string()) },
+                    error_message: if result.success {
+                        None
+                    } else {
+                        Some(crate::output::truncate_utf8(&result.summary, 500).to_string())
+                    },
                 };
-                if let Err(e) = self.client.report_execution(&task.project_id, &task.task_id, &exec_report).await {
-                    tracing::warn!("AutoRunner: failed to report execution for {}: {e}", task.task_id);
+                if let Err(e) = self
+                    .client
+                    .report_execution(&task.project_id, &task.task_id, &exec_report)
+                    .await
+                {
+                    tracing::warn!(
+                        "AutoRunner: failed to report execution for {}: {e}",
+                        task.task_id
+                    );
                 }
 
                 // Unlock
-                let _ = self.client.unlock_task(&task.project_id, &task.task_id).await;
+                let _ = self
+                    .client
+                    .unlock_task(&task.project_id, &task.task_id)
+                    .await;
 
                 // Archive local file if done
                 if result.success {
@@ -411,7 +476,11 @@ impl AutoRunner {
                 tracing::info!(
                     "AutoRunner: task {} {} in {}s",
                     task.task_id,
-                    if result.success { "completed" } else { "failed" },
+                    if result.success {
+                        "completed"
+                    } else {
+                        "failed"
+                    },
                     dur.num_seconds()
                 );
             } else {
@@ -422,14 +491,17 @@ impl AutoRunner {
 
     /// Gracefully shut down all running tasks.
     pub async fn shutdown(&mut self) {
-        for (_path, slot) in &mut self.slots {
+        for slot in self.slots.values_mut() {
             for mut task in slot.running.drain(..) {
                 task.heartbeat_running.store(false, Ordering::Release);
                 // Drop thread handle — the thread may still be running but will finish
                 task.thread_handle.take();
                 task.heartbeat_handle.abort();
                 // Unlock task
-                let _ = self.client.unlock_task(&task.project_id, &task.task_id).await;
+                let _ = self
+                    .client
+                    .unlock_task(&task.project_id, &task.task_id)
+                    .await;
             }
         }
     }

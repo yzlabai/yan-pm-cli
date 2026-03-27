@@ -14,12 +14,13 @@ pub fn enable(
     agent: Option<&str>,
 ) -> Result<()> {
     let ws = config::find_workspace_link(None);
-    let ws = ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 yan-pm link <project>"))?;
+    let ws =
+        ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 yan-pm link <project>"))?;
 
     let local_dir = LocalDirectory::new(Path::new(&ws.path));
-    let mut config = local_dir.load_config().ok_or_else(|| {
-        anyhow::anyhow!("本地配置不存在。请先运行 yan-pm link")
-    })?;
+    let mut config = local_dir
+        .load_config()
+        .ok_or_else(|| anyhow::anyhow!("本地配置不存在。请先运行 yan-pm link"))?;
 
     config.auto_run = AutoRunConfig {
         enabled: true,
@@ -48,9 +49,9 @@ pub fn disable() -> Result<()> {
     let ws = ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目"))?;
 
     let local_dir = LocalDirectory::new(Path::new(&ws.path));
-    let mut config = local_dir.load_config().ok_or_else(|| {
-        anyhow::anyhow!("本地配置不存在")
-    })?;
+    let mut config = local_dir
+        .load_config()
+        .ok_or_else(|| anyhow::anyhow!("本地配置不存在"))?;
 
     config.auto_run.enabled = false;
     local_dir.save_config(&config)?;
@@ -65,9 +66,9 @@ pub fn status() -> Result<()> {
     let ws = ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目"))?;
 
     let local_dir = LocalDirectory::new(Path::new(&ws.path));
-    let config = local_dir.load_config().ok_or_else(|| {
-        anyhow::anyhow!("本地配置不存在")
-    })?;
+    let config = local_dir
+        .load_config()
+        .ok_or_else(|| anyhow::anyhow!("本地配置不存在"))?;
 
     if config.auto_run.enabled {
         println!("{} Auto-run: {}", "●".green(), "已启用".green());
@@ -90,14 +91,8 @@ pub fn status() -> Result<()> {
 }
 
 fn print_config(config: &AutoRunConfig) {
-    println!(
-        "  Agent: {}",
-        config.agent.cyan()
-    );
-    println!(
-        "  并发: {}",
-        config.concurrency
-    );
+    println!("  Agent: {}", config.agent.cyan());
+    println!("  并发: {}", config.concurrency);
     if let Some(budget) = config.budget {
         println!("  预算: ${budget:.2}");
     } else {

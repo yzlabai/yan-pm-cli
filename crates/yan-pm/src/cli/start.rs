@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
@@ -39,10 +39,7 @@ pub async fn run(
         None => {
             let available = agent::load_agents();
             let names: Vec<&str> = available.iter().map(|a| a.name.as_str()).collect();
-            bail!(
-                "未知 Agent: {agent_name}。可用: {}",
-                names.join(", ")
-            );
+            bail!("未知 Agent: {agent_name}。可用: {}", names.join(", "));
         }
     };
 
@@ -58,9 +55,7 @@ pub async fn run(
     let cwd = if let Some(dir) = cwd_override {
         dir.to_string()
     } else {
-        std::env::current_dir()?
-            .to_string_lossy()
-            .to_string()
+        std::env::current_dir()?.to_string_lossy().to_string()
     };
 
     // Start workspace heartbeat (register workspace + 2min interval)
@@ -68,7 +63,10 @@ pub async fn run(
 
     // Budget tracking depends on agent reporting cost (ACP currently doesn't expose cost_usd)
     if budget.is_some() || total_budget.is_some() {
-        eprintln!("{}", "⚠ 预算限制依赖 Agent 上报费用信息，当前 ACP 协议暂不支持，设置仅作参考".yellow());
+        eprintln!(
+            "{}",
+            "⚠ 预算限制依赖 Agent 上报费用信息，当前 ACP 协议暂不支持，设置仅作参考".yellow()
+        );
     }
 
     let runner_opts = runner::TaskRunnerOptions {

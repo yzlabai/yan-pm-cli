@@ -29,7 +29,11 @@ pub fn fork_daemon() -> Result<()> {
     // Child inherits env vars (YAN_PM_BASE_URL, YAN_PM_TOKEN) automatically via fork+exec.
     // Config file (~/.config/yan-pm/config.json) is also accessible. No need to pass --url/--token
     // as CLI args (which would expose token in `ps aux` output).
-    let args = vec!["daemon".to_string(), "start".to_string(), "--foreground".to_string()];
+    let args = vec![
+        "daemon".to_string(),
+        "start".to_string(),
+        "--foreground".to_string(),
+    ];
 
     // Double-fork to detach from terminal
     match unsafe { libc::fork() } {
@@ -112,7 +116,10 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
     for ws in &workspace_entries {
         let local_dir = LocalDirectory::new(std::path::Path::new(&ws.path));
         let local_config = local_dir.load_config();
-        let auto_run_enabled = local_config.as_ref().map(|c| c.auto_run.enabled).unwrap_or(false);
+        let auto_run_enabled = local_config
+            .as_ref()
+            .map(|c| c.auto_run.enabled)
+            .unwrap_or(false);
         daemon_state.workspaces.push(DaemonWorkspaceState {
             path: ws.path.clone(),
             project_id: ws.project_id.clone(),
@@ -359,10 +366,7 @@ fn reload_auto_run_configs(
     }
 }
 
-fn update_state_auto_run(
-    state: &mut DaemonState,
-    _workspace_entries: &[config::WorkspaceEntry],
-) {
+fn update_state_auto_run(state: &mut DaemonState, _workspace_entries: &[config::WorkspaceEntry]) {
     for ws_state in &mut state.workspaces {
         let local_dir = LocalDirectory::new(std::path::Path::new(&ws_state.path));
         if let Some(local_config) = local_dir.load_config() {

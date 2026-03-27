@@ -2,11 +2,11 @@ use std::io::{self, Write};
 
 use anyhow::{Context, Result};
 
+use super::detect;
+use super::make_client;
 use crate::api::types::UpdateProjectData;
 use crate::config;
 use crate::output;
-use super::detect;
-use super::make_client;
 
 pub async fn list(url: Option<&str>, token: Option<&str>, json: bool) -> Result<()> {
     let client = make_client(url, token)?;
@@ -19,7 +19,12 @@ pub async fn list(url: Option<&str>, token: Option<&str>, json: bool) -> Result<
     Ok(())
 }
 
-pub async fn report(url: Option<&str>, token: Option<&str>, json: bool, project_id: &str) -> Result<()> {
+pub async fn report(
+    url: Option<&str>,
+    token: Option<&str>,
+    json: bool,
+    project_id: &str,
+) -> Result<()> {
     let client = make_client(url, token)?;
     let report = client.generate_report(project_id).await?;
     if json {
@@ -39,8 +44,9 @@ pub async fn sync_info(
 ) -> Result<()> {
     // 1. 从 workspace link 获取 project_id
     let cwd = std::env::current_dir().context("无法获取当前目录")?;
-    let link = config::find_workspace_link(Some(&cwd))
-        .ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 `yan-pm link <project-id>`"))?;
+    let link = config::find_workspace_link(Some(&cwd)).ok_or_else(|| {
+        anyhow::anyhow!("当前目录未关联项目。请先运行 `yan-pm link <project-id>`")
+    })?;
 
     let client = make_client(url, token)?;
 
@@ -59,7 +65,11 @@ pub async fn sync_info(
         if remote != local_url {
             diffs.push(FieldDiff {
                 name: "repoUrl".to_string(),
-                current: if remote.is_empty() { "(空)".to_string() } else { remote.to_string() },
+                current: if remote.is_empty() {
+                    "(空)".to_string()
+                } else {
+                    remote.to_string()
+                },
                 detected: local_url.clone(),
             });
         }
@@ -73,14 +83,20 @@ pub async fn sync_info(
         if remote_str != detected_str {
             diffs.push(FieldDiff {
                 name: "techStack".to_string(),
-                current: if remote_str.is_empty() { "(空)".to_string() } else { remote_str },
+                current: if remote_str.is_empty() {
+                    "(空)".to_string()
+                } else {
+                    remote_str
+                },
                 detected: detected_str,
             });
         }
     }
 
     // AI 上下文 (customAiPrompt)
-    if let (Some(ref ai_ctx), Some(ref source)) = (&detected.ai_context, &detected.ai_context_source) {
+    if let (Some(ref ai_ctx), Some(ref source)) =
+        (&detected.ai_context, &detected.ai_context_source)
+    {
         let remote_prompt = get_remote_custom_prompt(&project.project.settings);
         if remote_prompt.as_deref() != Some(ai_ctx.as_str()) {
             let char_count = ai_ctx.chars().count();
@@ -107,22 +123,31 @@ pub async fn sync_info(
     }
 
     if json {
-        let diff_json: Vec<serde_json::Value> = diffs.iter().map(|d| {
-            serde_json::json!({
-                "field": d.name,
-                "current": d.current,
-                "detected": d.detected,
+        let diff_json: Vec<serde_json::Value> = diffs
+            .iter()
+            .map(|d| {
+                serde_json::json!({
+                    "field": d.name,
+                    "current": d.current,
+                    "detected": d.detected,
+                })
             })
-        }).collect();
+            .collect();
         if dry_run {
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                "status": "dry_run",
-                "changes": diff_json,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "status": "dry_run",
+                    "changes": diff_json,
+                }))?
+            );
             return Ok(());
         }
     } else {
-        println!("📦 项目：{} ({})\n", project.project.name, project.project.slug);
+        println!(
+            "📦 项目：{} ({})\n",
+            project.project.name, project.project.slug
+        );
         println!("检测到以下信息可同步到云端：\n");
         for d in &diffs {
             println!("  {}:", d.name);
@@ -154,8 +179,10 @@ pub async fn sync_info(
 
     // 7. 构建 payload 上传
     let mut settings = serde_json::Map::new();
-    let mut update = UpdateProjectData::default();
-    update.sync_source = Some("cli".to_string());
+    let mut update = UpdateProjectData {
+        sync_source: Some("cli".to_string()),
+        ..Default::default()
+    };
 
     for d in &diffs {
         match d.name.as_str() {

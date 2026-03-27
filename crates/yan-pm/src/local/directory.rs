@@ -122,7 +122,10 @@ impl LocalDirectory {
         let gitignore = self.root.join(".gitignore");
         if gitignore.exists() {
             let content = fs::read_to_string(&gitignore).unwrap_or_default();
-            if !content.lines().any(|l| l.trim() == ".yan-pm" || l.trim() == ".yan-pm/") {
+            if !content
+                .lines()
+                .any(|l| l.trim() == ".yan-pm" || l.trim() == ".yan-pm/")
+            {
                 let mut new_content = content;
                 if !new_content.ends_with('\n') {
                     new_content.push('\n');
@@ -187,11 +190,7 @@ impl LocalDirectory {
                         });
                     }
                     Err(e) => {
-                        eprintln!(
-                            "⚠ 跳过无效任务文件 {}: {}",
-                            path.display(),
-                            e
-                        );
+                        eprintln!("⚠ 跳过无效任务文件 {}: {}", path.display(), e);
                     }
                 },
                 Err(e) => {
@@ -230,9 +229,7 @@ impl LocalDirectory {
         if !task_path.exists() {
             return Ok(());
         }
-        let filename = task_path
-            .file_name()
-            .context("Invalid task file path")?;
+        let filename = task_path.file_name().context("Invalid task file path")?;
         let dest = self.done_dir().join(filename);
         fs::rename(task_path, &dest).context("Failed to archive task file")?;
         Ok(())
@@ -284,12 +281,7 @@ impl LocalDirectory {
         let existing = self.scan_tasks()?;
         let existing_by_id: std::collections::HashMap<String, LocalTaskFile> = existing
             .into_iter()
-            .filter_map(|t| {
-                t.frontmatter
-                    .id
-                    .clone()
-                    .map(|id| (id, t))
-            })
+            .filter_map(|t| t.frontmatter.id.clone().map(|id| (id, t)))
             .collect();
 
         for task in tasks {
@@ -298,12 +290,18 @@ impl LocalDirectory {
 
             match (fm.status, existing_by_id.get(&task.id)) {
                 // Done/Cancelled → archive if exists locally
-                (crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled, Some(local)) => {
+                (
+                    crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled,
+                    Some(local),
+                ) => {
                     self.archive_task(&local.file_path)?;
                     archived += 1;
                 }
                 // Done/Cancelled but not local → write to done/ directly
-                (crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled, None) => {
+                (
+                    crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled,
+                    None,
+                ) => {
                     let filename = task_filename(fm.number, &fm.title);
                     let path = self.done_dir().join(&filename);
                     let content = render_task_file(&fm, body)?;
@@ -314,7 +312,12 @@ impl LocalDirectory {
                 (_, Some(local)) => {
                     // Remove old file if filename changed (due to number/title change)
                     let new_filename = task_filename(fm.number, &fm.title);
-                    let old_filename = local.file_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    let old_filename = local
+                        .file_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
                     if new_filename != old_filename {
                         self.remove_task_file(&local.file_path)?;
                     }

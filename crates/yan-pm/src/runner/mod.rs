@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
@@ -42,7 +42,10 @@ fn priority_order(p: &TaskPriority) -> u8 {
 
 /// Pick the next task to execute (highest priority, oldest first)
 fn pick_next_task(tasks: &[Task]) -> Option<&Task> {
-    let mut todo: Vec<&Task> = tasks.iter().filter(|t| t.status == TaskStatus::Todo).collect();
+    let mut todo: Vec<&Task> = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Todo)
+        .collect();
     todo.sort_by(|a, b| {
         let pa = priority_order(&a.priority);
         let pb = priority_order(&b.priority);
@@ -108,7 +111,10 @@ async fn run_task(
     );
 
     // 1. Lock task
-    match client.lock_task(project_id, task_id, opts.workspace_id.as_deref()).await {
+    match client
+        .lock_task(project_id, task_id, opts.workspace_id.as_deref())
+        .await
+    {
         Ok(_) => {}
         Err(e) => {
             if e.is_conflict() {
@@ -253,12 +259,18 @@ fn resolve_task<'a>(tasks: &'a [Task], id_or_prefix: &str) -> Option<&'a Task> {
         return Some(t);
     }
     // Prefix match
-    let matches: Vec<&Task> = tasks.iter().filter(|t| t.id.starts_with(id_or_prefix)).collect();
+    let matches: Vec<&Task> = tasks
+        .iter()
+        .filter(|t| t.id.starts_with(id_or_prefix))
+        .collect();
     if matches.len() == 1 {
         return Some(matches[0]);
     }
     if matches.len() > 1 {
-        eprintln!("{}", format!("✗ 任务 ID 前缀 \"{id_or_prefix}\" 匹配到多个任务:").red());
+        eprintln!(
+            "{}",
+            format!("✗ 任务 ID 前缀 \"{id_or_prefix}\" 匹配到多个任务:").red()
+        );
         for m in &matches {
             eprintln!("  {} {}", &m.id[..8.min(m.id.len())].dimmed(), m.title);
         }
@@ -269,7 +281,9 @@ fn resolve_task<'a>(tasks: &'a [Task], id_or_prefix: &str) -> Option<&'a Task> {
 /// Main start entry point
 pub async fn start(client: &ApiClient, options: StartOptions) -> Result<()> {
     // Fetch project info
-    let project = client.get_project(&options.project_id).await
+    let project = client
+        .get_project(&options.project_id)
+        .await
         .map_err(|e| anyhow::anyhow!("获取项目失败: {e}"))?;
     let project_name = &project.project.name;
     let project_id = &project.project.id;
@@ -300,7 +314,8 @@ pub async fn start(client: &ApiClient, options: StartOptions) -> Result<()> {
         let mut failed = 0u32;
         let mut total_cost = 0.0f64;
         let total_budget = options.total_budget_usd;
-        let mut failed_task_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut failed_task_ids: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
 
         loop {
             if let Some(budget) = total_budget {
@@ -314,10 +329,19 @@ pub async fn start(client: &ApiClient, options: StartOptions) -> Result<()> {
             }
 
             let tasks = client
-                .list_tasks(project_id, &TaskListParams { status: Some(TaskStatus::Todo), ..Default::default() })
+                .list_tasks(
+                    project_id,
+                    &TaskListParams {
+                        status: Some(TaskStatus::Todo),
+                        ..Default::default()
+                    },
+                )
                 .await?;
             // Skip tasks that already failed in this session
-            let eligible: Vec<&Task> = tasks.iter().filter(|t| !failed_task_ids.contains(&t.id)).collect();
+            let eligible: Vec<&Task> = tasks
+                .iter()
+                .filter(|t| !failed_task_ids.contains(&t.id))
+                .collect();
             let task = {
                 let mut todo: Vec<&&Task> = eligible.iter().collect();
                 todo.sort_by(|a, b| {
@@ -355,13 +379,22 @@ pub async fn start(client: &ApiClient, options: StartOptions) -> Result<()> {
     } else {
         // Single mode
         let tasks = client
-            .list_tasks(project_id, &TaskListParams { status: Some(TaskStatus::Todo), ..Default::default() })
+            .list_tasks(
+                project_id,
+                &TaskListParams {
+                    status: Some(TaskStatus::Todo),
+                    ..Default::default()
+                },
+            )
             .await?;
         let task = pick_next_task(&tasks);
 
         match task {
             Some(t) => {
-                let todo_count = tasks.iter().filter(|t| t.status == TaskStatus::Todo).count();
+                let todo_count = tasks
+                    .iter()
+                    .filter(|t| t.status == TaskStatus::Todo)
+                    .count();
                 println!(
                     "{}",
                     format!("  找到 {todo_count} 个待执行任务，选择最高优先级:").dimmed()

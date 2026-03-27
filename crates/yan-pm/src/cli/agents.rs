@@ -17,11 +17,7 @@ pub async fn run() -> Result<()> {
         } else {
             "✗ 未安装".red().to_string()
         };
-        let cmd = format!(
-            "{} {}",
-            agent.command,
-            agent.acp_args.join(" ")
-        );
+        let cmd = format!("{} {}", agent.command, agent.acp_args.join(" "));
         table.add_row(vec![&agent.name, &status, &cmd]);
     }
 

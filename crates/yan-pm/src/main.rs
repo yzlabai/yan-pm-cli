@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments, clippy::module_inception)]
+
 mod agent;
 mod api;
 mod cli;
@@ -368,7 +370,9 @@ async fn main() {
     // Skip default tracing init for daemon foreground mode — it sets up its own file logger
     let is_daemon_foreground = matches!(
         &cli.command,
-        Commands::Daemon { action: DaemonAction::Start { foreground: true } }
+        Commands::Daemon {
+            action: DaemonAction::Start { foreground: true }
+        }
     );
     if !is_daemon_foreground {
         tracing_subscriber::fmt()
@@ -382,50 +386,267 @@ async fn main() {
 
     let result = match cli.command {
         Commands::Login { token } => cli::login::run(token.as_deref()).await,
-        Commands::List => cli::project::list(cli.url.as_deref(), cli.token.as_deref(), cli.json).await,
-        Commands::Tasks { project_id, status, task_type, priority, assignee, keyword, local } => {
-            cli::task::list(cli.url.as_deref(), cli.token.as_deref(), cli.json, project_id.as_deref(), status.as_deref(), task_type.as_deref(), priority.as_deref(), assignee.as_deref(), keyword.as_deref(), local).await
+        Commands::List => {
+            cli::project::list(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::Create { project_id, title, description, task_type, priority, assignee, due, tags } => {
-            cli::task::create(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &title, description.as_deref(), task_type.as_deref(), priority.as_deref(), assignee.as_deref(), due.as_deref(), tags.as_deref()).await
+        Commands::Tasks {
+            project_id,
+            status,
+            task_type,
+            priority,
+            assignee,
+            keyword,
+            local,
+        } => {
+            cli::task::list(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                project_id.as_deref(),
+                status.as_deref(),
+                task_type.as_deref(),
+                priority.as_deref(),
+                assignee.as_deref(),
+                keyword.as_deref(),
+                local,
+            )
+            .await
         }
-        Commands::Update { project_id, task_id, title, status, priority, assignee, task_type } => {
-            cli::task::update(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &task_id, title.as_deref(), status.as_deref(), priority.as_deref(), assignee.as_deref(), task_type.as_deref()).await
+        Commands::Create {
+            project_id,
+            title,
+            description,
+            task_type,
+            priority,
+            assignee,
+            due,
+            tags,
+        } => {
+            cli::task::create(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &title,
+                description.as_deref(),
+                task_type.as_deref(),
+                priority.as_deref(),
+                assignee.as_deref(),
+                due.as_deref(),
+                tags.as_deref(),
+            )
+            .await
         }
-        Commands::Comment { project_id, task_id, content } => {
-            cli::task::comment(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &task_id, &content).await
+        Commands::Update {
+            project_id,
+            task_id,
+            title,
+            status,
+            priority,
+            assignee,
+            task_type,
+        } => {
+            cli::task::update(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &task_id,
+                title.as_deref(),
+                status.as_deref(),
+                priority.as_deref(),
+                assignee.as_deref(),
+                task_type.as_deref(),
+            )
+            .await
+        }
+        Commands::Comment {
+            project_id,
+            task_id,
+            content,
+        } => {
+            cli::task::comment(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &task_id,
+                &content,
+            )
+            .await
         }
         Commands::Report { project_id } => {
-            cli::project::report(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id).await
+            cli::project::report(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+            )
+            .await
         }
-        Commands::Issues { project_id, status, issue_type, priority, keyword } => {
-            cli::issue::list(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, status.as_deref(), issue_type.as_deref(), priority.as_deref(), keyword.as_deref()).await
+        Commands::Issues {
+            project_id,
+            status,
+            issue_type,
+            priority,
+            keyword,
+        } => {
+            cli::issue::list(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                status.as_deref(),
+                issue_type.as_deref(),
+                priority.as_deref(),
+                keyword.as_deref(),
+            )
+            .await
         }
-        Commands::CreateIssue { project_id, title, description, issue_type, priority, assignee, labels } => {
-            cli::issue::create(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &title, description.as_deref(), issue_type.as_deref(), priority.as_deref(), assignee.as_deref(), labels.as_deref()).await
+        Commands::CreateIssue {
+            project_id,
+            title,
+            description,
+            issue_type,
+            priority,
+            assignee,
+            labels,
+        } => {
+            cli::issue::create(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &title,
+                description.as_deref(),
+                issue_type.as_deref(),
+                priority.as_deref(),
+                assignee.as_deref(),
+                labels.as_deref(),
+            )
+            .await
         }
-        Commands::UpdateIssue { project_id, issue_id, title, status, priority, issue_type, assignee, labels } => {
-            cli::issue::update(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &issue_id, title.as_deref(), status.as_deref(), priority.as_deref(), issue_type.as_deref(), assignee.as_deref(), labels.as_deref()).await
+        Commands::UpdateIssue {
+            project_id,
+            issue_id,
+            title,
+            status,
+            priority,
+            issue_type,
+            assignee,
+            labels,
+        } => {
+            cli::issue::update(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &issue_id,
+                title.as_deref(),
+                status.as_deref(),
+                priority.as_deref(),
+                issue_type.as_deref(),
+                assignee.as_deref(),
+                labels.as_deref(),
+            )
+            .await
         }
-        Commands::DecomposeIssue { project_id, issue_id } => {
-            cli::issue::decompose(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, &issue_id).await
+        Commands::DecomposeIssue {
+            project_id,
+            issue_id,
+        } => {
+            cli::issue::decompose(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                &issue_id,
+            )
+            .await
         }
-        Commands::Link { project_id, path, name } => {
-            cli::workspace::link(cli.url.as_deref(), cli.token.as_deref(), &project_id, path.as_deref(), name.as_deref()).await
+        Commands::Link {
+            project_id,
+            path,
+            name,
+        } => {
+            cli::workspace::link(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                &project_id,
+                path.as_deref(),
+                name.as_deref(),
+            )
+            .await
         }
         Commands::Unlink => cli::workspace::unlink(cli.url.as_deref(), cli.token.as_deref()).await,
         Commands::Workspaces { project_id } => {
-            cli::workspace::list(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id).await
+            cli::workspace::list(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+            )
+            .await
         }
-        Commands::Info => cli::workspace::info(cli.url.as_deref(), cli.token.as_deref(), cli.json).await,
-        Commands::Status { project_id, task_id } => {
-            cli::task::status(cli.url.as_deref(), cli.token.as_deref(), cli.json, &project_id, task_id.as_deref()).await
+        Commands::Info => {
+            cli::workspace::info(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::ForceUnlock { project_id, task_id } => {
-            cli::task::force_unlock(cli.url.as_deref(), cli.token.as_deref(), &project_id, &task_id).await
+        Commands::Status {
+            project_id,
+            task_id,
+        } => {
+            cli::task::status(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                cli.json,
+                &project_id,
+                task_id.as_deref(),
+            )
+            .await
         }
-        Commands::Start { project_id, task, auto, budget, total_budget, cwd, agent, model, permission_mode, tools, mcp_config, verbose } => {
-            cli::start::run(cli.url.as_deref(), cli.token.as_deref(), &project_id, task.as_deref(), auto, budget, total_budget, cwd.as_deref(), &agent, model.as_deref(), &permission_mode, tools.as_deref(), mcp_config.as_deref(), verbose).await
+        Commands::ForceUnlock {
+            project_id,
+            task_id,
+        } => {
+            cli::task::force_unlock(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                &project_id,
+                &task_id,
+            )
+            .await
+        }
+        Commands::Start {
+            project_id,
+            task,
+            auto,
+            budget,
+            total_budget,
+            cwd,
+            agent,
+            model,
+            permission_mode,
+            tools,
+            mcp_config,
+            verbose,
+        } => {
+            cli::start::run(
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+                &project_id,
+                task.as_deref(),
+                auto,
+                budget,
+                total_budget,
+                cwd.as_deref(),
+                &agent,
+                model.as_deref(),
+                &permission_mode,
+                tools.as_deref(),
+                mcp_config.as_deref(),
+                verbose,
+            )
+            .await
         }
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,
@@ -447,7 +668,14 @@ async fn main() {
         },
         Commands::Project { action } => match action {
             ProjectAction::SyncInfo { yes, dry_run } => {
-                cli::project::sync_info(cli.url.as_deref(), cli.token.as_deref(), cli.json, yes, dry_run).await
+                cli::project::sync_info(
+                    cli.url.as_deref(),
+                    cli.token.as_deref(),
+                    cli.json,
+                    yes,
+                    dry_run,
+                )
+                .await
             }
         },
         Commands::SelfUpdate => cli::self_update::run().await,

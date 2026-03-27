@@ -63,7 +63,6 @@ pub fn acquire_lock() -> Result<()> {
     if let Some(pid) = check_running() {
         bail!("Daemon 已在运行 (PID: {pid})。使用 `yan-pm daemon stop` 停止后重试。");
     }
-    write_pid()
-        .context("无法写入 PID 文件")?;
+    write_pid().context("无法写入 PID 文件")?;
     Ok(())
 }

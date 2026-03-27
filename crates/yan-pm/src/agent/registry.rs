@@ -99,7 +99,10 @@ pub async fn list_available_agents() -> Vec<AgentDefinition> {
 /// Check if a command exists in PATH
 pub async fn is_command_available(command: &str) -> bool {
     // Validate command name to prevent injection (allow only alphanumeric, dash, underscore, dot)
-    if !command.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+    if !command
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
         return false;
     }
     // Use "command -v" on Unix (sh built-in, works on macOS/Linux)

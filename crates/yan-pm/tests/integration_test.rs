@@ -3,7 +3,7 @@ use predicates::prelude::*;
 use std::io::{BufRead, Write};
 
 fn cmd() -> Command {
-    Command::cargo_bin("yan-pm").unwrap()
+    Command::cargo_bin("yan-pm-cli").unwrap()
 }
 
 // =====================
@@ -16,7 +16,7 @@ fn test_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("YanChat"))
+        .stdout(predicate::str::contains("yan.chat"))
         .stdout(predicate::str::contains("Commands:"));
 }
 
@@ -431,7 +431,10 @@ async fn test_update_task_with_mock() {
     let mut server = mockito::Server::new_async().await;
     let task_id = "task-1111-2222-3333-444444444444";
     let mock = server
-        .mock("PATCH", format!("/api/projects/proj-1/tasks/{task_id}").as_str())
+        .mock(
+            "PATCH",
+            format!("/api/projects/proj-1/tasks/{task_id}").as_str(),
+        )
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
@@ -462,9 +465,13 @@ async fn test_update_task_with_mock() {
 
     cmd()
         .args([
-            "update", "proj-1", task_id,
-            "--title", "Updated Title",
-            "--status", "in_progress",
+            "update",
+            "proj-1",
+            task_id,
+            "--title",
+            "Updated Title",
+            "--status",
+            "in_progress",
             "--url",
         ])
         .arg(server.url())
@@ -481,7 +488,10 @@ async fn test_comment_with_mock() {
     let mut server = mockito::Server::new_async().await;
     let task_id = "task-1111-2222-3333-444444444444";
     let mock = server
-        .mock("POST", format!("/api/projects/proj-1/tasks/{task_id}/comments").as_str())
+        .mock(
+            "POST",
+            format!("/api/projects/proj-1/tasks/{task_id}/comments").as_str(),
+        )
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
@@ -592,9 +602,10 @@ async fn test_tasks_with_type_filter() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/api/projects/proj-1/tasks")
-        .match_query(mockito::Matcher::AllOf(vec![
-            mockito::Matcher::UrlEncoded("type".into(), "bug".into()),
-        ]))
+        .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
+            "type".into(),
+            "bug".into(),
+        )]))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body("[]")
@@ -616,9 +627,10 @@ async fn test_issues_with_priority_filter() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/api/projects/proj-1/issues")
-        .match_query(mockito::Matcher::AllOf(vec![
-            mockito::Matcher::UrlEncoded("priority".into(), "urgent".into()),
-        ]))
+        .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
+            "priority".into(),
+            "urgent".into(),
+        )]))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body("[]")
@@ -652,7 +664,7 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
         .create_async()
         .await;
 
-    let binary = assert_cmd::cargo::cargo_bin("yan-pm");
+    let binary = assert_cmd::cargo::cargo_bin("yan-pm-cli");
     let mut child = std::process::Command::new(&binary)
         .arg("mcp")
         .env("YAN_PM_BASE_URL", server.url())
@@ -715,10 +727,7 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
     assert_eq!(tools.len(), 14);
 
     // Verify key tool names are present
-    let names: Vec<&str> = tools
-        .iter()
-        .map(|t| t["name"].as_str().unwrap())
-        .collect();
+    let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"list_projects"));
     assert!(names.contains(&"list_tasks"));
     assert!(names.contains(&"create_task"));
@@ -762,20 +771,23 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
 
 #[test]
 fn test_start_help_shows_tools_and_mcp_config() {
-    let cmd = Command::cargo_bin("yan-pm")
+    let cmd = Command::cargo_bin("yan-pm-cli")
         .unwrap()
         .args(["start", "--help"])
         .output()
         .unwrap();
     let help = String::from_utf8(cmd.stdout).unwrap();
     assert!(help.contains("--tools"), "should show --tools flag");
-    assert!(help.contains("--mcp-config"), "should show --mcp-config flag");
+    assert!(
+        help.contains("--mcp-config"),
+        "should show --mcp-config flag"
+    );
 }
 
 #[test]
 fn test_tasks_search_alias() {
     // --search should be accepted as alias for --keyword
-    let cmd = Command::cargo_bin("yan-pm")
+    let cmd = Command::cargo_bin("yan-pm-cli")
         .unwrap()
         .args(["tasks", "--help"])
         .output()
@@ -787,11 +799,14 @@ fn test_tasks_search_alias() {
 #[test]
 fn test_create_desc_alias() {
     // --desc should be accepted as alias for --description
-    let cmd = Command::cargo_bin("yan-pm")
+    let cmd = Command::cargo_bin("yan-pm-cli")
         .unwrap()
         .args(["create", "--help"])
         .output()
         .unwrap();
     let help = String::from_utf8(cmd.stdout).unwrap();
-    assert!(help.contains("--description"), "should show --description flag");
+    assert!(
+        help.contains("--description"),
+        "should show --description flag"
+    );
 }

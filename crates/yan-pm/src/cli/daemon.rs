@@ -6,11 +6,7 @@ use colored::Colorize;
 use crate::config::config_dir;
 use crate::daemon::{pid, process, service, state::DaemonState};
 
-pub async fn start(
-    url: Option<&str>,
-    token: Option<&str>,
-    foreground: bool,
-) -> Result<()> {
+pub async fn start(url: Option<&str>, token: Option<&str>, foreground: bool) -> Result<()> {
     if foreground {
         // Run in foreground (blocking)
         process::run_foreground(url, token).await
@@ -58,10 +54,7 @@ pub fn status() -> Result<()> {
                 println!("  启动时间: {}", state.started_at);
                 println!("  工作区数: {}", state.workspaces.len());
                 for ws in &state.workspaces {
-                    let sync_info = ws
-                        .last_sync
-                        .as_deref()
-                        .unwrap_or("从未同步");
+                    let sync_info = ws.last_sync.as_deref().unwrap_or("从未同步");
                     let auto_run = if ws.auto_run { "开启" } else { "关闭" };
                     println!(
                         "    {} (项目: {}, 上次同步: {}, 自动执行: {})",
@@ -90,10 +83,8 @@ pub fn logs(follow: bool) -> Result<()> {
         let reader = BufReader::new(file);
 
         // Print existing content
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                println!("{line}");
-            }
+        for line in reader.lines().map_while(Result::ok) {
+            println!("{line}");
         }
 
         // Then watch for new content
@@ -115,10 +106,8 @@ pub fn logs(follow: bool) -> Result<()> {
                 let mut reader = BufReader::new(file);
                 use std::io::Seek;
                 reader.seek(std::io::SeekFrom::Start(last_size))?;
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        println!("{line}");
-                    }
+                for line in reader.lines().map_while(Result::ok) {
+                    println!("{line}");
                 }
                 last_size = current_size;
             }
@@ -127,7 +116,11 @@ pub fn logs(follow: bool) -> Result<()> {
         // Print last 50 lines
         let content = std::fs::read_to_string(&log_file)?;
         let lines: Vec<&str> = content.lines().collect();
-        let start = if lines.len() > 50 { lines.len() - 50 } else { 0 };
+        let start = if lines.len() > 50 {
+            lines.len() - 50
+        } else {
+            0
+        };
         for line in &lines[start..] {
             println!("{line}");
         }

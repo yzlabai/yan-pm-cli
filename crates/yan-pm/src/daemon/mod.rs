@@ -1,8 +1,8 @@
-pub mod pid;
-pub mod state;
-pub mod process;
-pub mod sync_manager;
+pub mod auto_runner;
 pub mod file_watcher;
 pub mod heartbeat;
+pub mod pid;
+pub mod process;
 pub mod service;
-pub mod auto_runner;
+pub mod state;
+pub mod sync_manager;

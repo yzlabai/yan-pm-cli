@@ -47,8 +47,11 @@ fn plist_path() -> PathBuf {
 
 /// Escape a string for safe inclusion in XML text content.
 fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
-     .replace('"', "&quot;").replace('\'', "&apos;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 #[cfg(target_os = "macos")]
@@ -101,7 +104,10 @@ fn install_launchd(exe_path: &str) -> Result<()> {
         println!("  Plist: {}", plist.display());
         println!("  服务将在登录后自动启动，异常退出自动重启");
     } else {
-        bail!("launchctl bootstrap 失败 (exit code: {})", status.code().unwrap_or(-1));
+        bail!(
+            "launchctl bootstrap 失败 (exit code: {})",
+            status.code().unwrap_or(-1)
+        );
     }
     Ok(())
 }

@@ -173,12 +173,10 @@ impl ApiClient {
         self.get(&format!("/projects/{project_id}/tasks{qs}")).await
     }
 
-    pub async fn get_task(
-        &self,
-        project_id: &str,
-        task_id: &str,
-    ) -> Result<TaskDetail, ApiError> {
-        validate_project_ref(project_id)?;        validate_resource_id(task_id, "任务 ID")?;        self.get(&format!("/projects/{project_id}/tasks/{task_id}"))
+    pub async fn get_task(&self, project_id: &str, task_id: &str) -> Result<TaskDetail, ApiError> {
+        validate_project_ref(project_id)?;
+        validate_resource_id(task_id, "任务 ID")?;
+        self.get(&format!("/projects/{project_id}/tasks/{task_id}"))
             .await
     }
 
@@ -244,11 +242,8 @@ impl ApiClient {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
         let body = serde_json::to_value(data).map_err(|e| ApiError::Parse(e.to_string()))?;
-        self.patch(
-            &format!("/projects/{project_id}/tasks/{task_id}"),
-            &body,
-        )
-        .await
+        self.patch(&format!("/projects/{project_id}/tasks/{task_id}"), &body)
+            .await
     }
 
     pub async fn add_comment(
@@ -289,17 +284,11 @@ impl ApiClient {
         .await
     }
 
-    pub async fn unlock_task(
-        &self,
-        project_id: &str,
-        task_id: &str,
-    ) -> Result<Value, ApiError> {
+    pub async fn unlock_task(&self, project_id: &str, task_id: &str) -> Result<Value, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!(
-            "/projects/{project_id}/tasks/{task_id}/unlock"
-        ))
-        .await
+        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/unlock"))
+            .await
     }
 
     pub async fn report_execution(
@@ -311,9 +300,10 @@ impl ApiClient {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
         let body = serde_json::to_value(data).unwrap_or_default();
-        self.post(&format!(
-            "/projects/{project_id}/tasks/{task_id}/executions"
-        ), &body)
+        self.post(
+            &format!("/projects/{project_id}/tasks/{task_id}/executions"),
+            &body,
+        )
         .await
     }
 
@@ -324,10 +314,8 @@ impl ApiClient {
     ) -> Result<HeartbeatResult, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!(
-            "/projects/{project_id}/tasks/{task_id}/heartbeat"
-        ))
-        .await
+        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/heartbeat"))
+            .await
     }
 
     pub async fn get_execution_status(
@@ -346,17 +334,11 @@ impl ApiClient {
     ) -> Result<DecomposeResult, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!(
-            "/projects/{project_id}/tasks/{task_id}/decompose"
-        ))
-        .await
+        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/decompose"))
+            .await
     }
 
-    pub async fn force_unlock(
-        &self,
-        project_id: &str,
-        task_id: &str,
-    ) -> Result<Value, ApiError> {
+    pub async fn force_unlock(&self, project_id: &str, task_id: &str) -> Result<Value, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(task_id, "任务 ID")?;
         self.post_empty(&format!(
@@ -435,11 +417,8 @@ impl ApiClient {
         validate_project_ref(project_id)?;
         validate_resource_id(issue_id, "需求 ID")?;
         let body = serde_json::to_value(data).map_err(|e| ApiError::Parse(e.to_string()))?;
-        self.patch(
-            &format!("/projects/{project_id}/issues/{issue_id}"),
-            &body,
-        )
-        .await
+        self.patch(&format!("/projects/{project_id}/issues/{issue_id}"), &body)
+            .await
     }
 
     pub async fn decompose_issue(
@@ -457,10 +436,7 @@ impl ApiClient {
 
     // ---- Workspaces ----
 
-    pub async fn list_workspaces(
-        &self,
-        project_id: &str,
-    ) -> Result<Vec<Workspace>, ApiError> {
+    pub async fn list_workspaces(&self, project_id: &str) -> Result<Vec<Workspace>, ApiError> {
         validate_project_ref(project_id)?;
         self.get(&format!("/projects/{project_id}/workspaces"))
             .await
@@ -484,10 +460,8 @@ impl ApiClient {
     ) -> Result<Value, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(workspace_id, "工作区 ID")?;
-        self.delete_req(&format!(
-            "/projects/{project_id}/workspaces/{workspace_id}"
-        ))
-        .await
+        self.delete_req(&format!("/projects/{project_id}/workspaces/{workspace_id}"))
+            .await
     }
 
     pub async fn workspace_heartbeat(
@@ -512,9 +486,7 @@ impl ApiClient {
 
     // ---- Device Code Flow (unauthenticated) ----
 
-    pub async fn device_code_request(
-        base_url: &str,
-    ) -> Result<DeviceCodeResponse, ApiError> {
+    pub async fn device_code_request(base_url: &str) -> Result<DeviceCodeResponse, ApiError> {
         let client = Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
@@ -534,9 +506,7 @@ impl ApiClient {
             });
         }
 
-        res.json()
-            .await
-            .map_err(|e| ApiError::Parse(e.to_string()))
+        res.json().await.map_err(|e| ApiError::Parse(e.to_string()))
     }
 
     pub async fn device_code_poll(
@@ -566,9 +536,7 @@ impl ApiClient {
             });
         }
 
-        res.json()
-            .await
-            .map_err(|e| ApiError::Parse(e.to_string()))
+        res.json().await.map_err(|e| ApiError::Parse(e.to_string()))
     }
 }
 

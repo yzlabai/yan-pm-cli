@@ -2,12 +2,12 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use super::make_client;
 use crate::api::client::{CreateTaskData, TaskListParams, UpdateTaskData};
 use crate::api::types::*;
 use crate::config;
 use crate::local::directory::LocalDirectory;
 use crate::output;
-use super::make_client;
 
 pub async fn list(
     url: Option<&str>,
@@ -28,7 +28,9 @@ pub async fn list(
     if local || (project_id.is_none() && link.is_some()) {
         let local_dir = LocalDirectory::new(&cwd);
         if !local_dir.is_initialized() {
-            anyhow::bail!("本地任务目录未初始化。请先运行 `yan-pm link <project>` 或 `yan-pm sync`");
+            anyhow::bail!(
+                "本地任务目录未初始化。请先运行 `yan-pm link <project>` 或 `yan-pm sync`"
+            );
         }
 
         let mut tasks = local_dir.scan_tasks()?;
@@ -136,7 +138,11 @@ pub async fn create(
     if json {
         println!("{}", serde_json::to_string_pretty(&task)?);
     } else {
-        println!("✓ 任务已创建: {} [{}]", task.title, &task.id[..8.min(task.id.len())]);
+        println!(
+            "✓ 任务已创建: {} [{}]",
+            task.title,
+            &task.id[..8.min(task.id.len())]
+        );
     }
     Ok(())
 }
@@ -181,7 +187,9 @@ pub async fn comment(
 ) -> Result<()> {
     let client = make_client(url, token)?;
     let resolved_id = client.resolve_task_id(project_id, task_id).await?;
-    let comment = client.add_comment(project_id, &resolved_id, content).await?;
+    let comment = client
+        .add_comment(project_id, &resolved_id, content)
+        .await?;
     if json {
         println!("{}", serde_json::to_string_pretty(&comment)?);
     } else {
@@ -207,7 +215,10 @@ pub async fn status(
         } else {
             let t = &detail.task;
             println!("任务: {} [{}]", t.title, &t.id[..8.min(t.id.len())]);
-            println!("状态: {}  优先级: {}  类型: {}", t.status, t.priority, t.task_type);
+            println!(
+                "状态: {}  优先级: {}  类型: {}",
+                t.status, t.priority, t.task_type
+            );
             if let Some(desc) = &t.description {
                 println!("描述: {desc}");
             }

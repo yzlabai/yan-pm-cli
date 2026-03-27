@@ -115,11 +115,7 @@ impl SyncEngine {
             if let Some(cached) = self.cache.get(task_id) {
                 let changes = detect_changes(&local.frontmatter, cached);
                 if !changes.is_empty() {
-                    local_changes.push((
-                        task_id.clone(),
-                        local.frontmatter.title.clone(),
-                        changes,
-                    ));
+                    local_changes.push((task_id.clone(), local.frontmatter.title.clone(), changes));
                 }
             }
         }
@@ -135,10 +131,8 @@ impl SyncEngine {
         result.archived = pull_result.archived;
 
         // Build cloud task map for conflict detection
-        let cloud_map: HashMap<String, &Task> = cloud_tasks
-            .iter()
-            .map(|t| (t.id.clone(), t))
-            .collect();
+        let cloud_map: HashMap<String, &Task> =
+            cloud_tasks.iter().map(|t| (t.id.clone(), t)).collect();
 
         // 2b. Archive orphaned local files (server-deleted tasks)
         let post_pull_local = self.local_dir.scan_tasks()?;
@@ -146,7 +140,10 @@ impl SyncEngine {
             if let Some(id) = &local.frontmatter.id {
                 if !cloud_map.contains_key(id.as_str()) {
                     if let Err(e) = self.local_dir.archive_task(&local.file_path) {
-                        result.errors.push(format!("归档孤儿任务 '{}' 失败: {e}", local.frontmatter.title));
+                        result.errors.push(format!(
+                            "归档孤儿任务 '{}' 失败: {e}",
+                            local.frontmatter.title
+                        ));
                     } else {
                         result.archived += 1;
                     }
@@ -182,9 +179,9 @@ impl SyncEngine {
 
             match self.push_changes(client, task_id, changes).await {
                 Ok(_) => result.pushed += 1,
-                Err(e) => result.errors.push(format!(
-                    "推送任务 '{title}' 变更失败: {e}",
-                )),
+                Err(e) => result
+                    .errors
+                    .push(format!("推送任务 '{title}' 变更失败: {e}",)),
             }
         }
 
@@ -282,9 +279,7 @@ impl SyncEngine {
             }
         }
 
-        client
-            .update_task(&self.project_id, task_id, &data)
-            .await?;
+        client.update_task(&self.project_id, task_id, &data).await?;
         Ok(())
     }
 }
@@ -390,7 +385,10 @@ mod tests {
         let cached = make_cached("Task A", TaskStatus::Todo, TaskPriority::Medium, None);
         let changes = detect_changes(&fm, &cached);
         assert_eq!(changes.len(), 1);
-        assert!(matches!(changes[0], FieldChange::Status(TaskStatus::InProgress)));
+        assert!(matches!(
+            changes[0],
+            FieldChange::Status(TaskStatus::InProgress)
+        ));
     }
 
     #[test]
@@ -399,7 +397,10 @@ mod tests {
         let cached = make_cached("Task A", TaskStatus::Todo, TaskPriority::Medium, None);
         let changes = detect_changes(&fm, &cached);
         assert_eq!(changes.len(), 1);
-        assert!(matches!(changes[0], FieldChange::Priority(TaskPriority::Urgent)));
+        assert!(matches!(
+            changes[0],
+            FieldChange::Priority(TaskPriority::Urgent)
+        ));
     }
 
     #[test]
@@ -413,7 +414,12 @@ mod tests {
 
     #[test]
     fn test_detect_assignee_change() {
-        let fm = make_frontmatter("Task A", TaskStatus::Todo, TaskPriority::Medium, Some("user-1"));
+        let fm = make_frontmatter(
+            "Task A",
+            TaskStatus::Todo,
+            TaskPriority::Medium,
+            Some("user-1"),
+        );
         let cached = make_cached("Task A", TaskStatus::Todo, TaskPriority::Medium, None);
         let changes = detect_changes(&fm, &cached);
         assert_eq!(changes.len(), 1);
@@ -422,7 +428,12 @@ mod tests {
 
     #[test]
     fn test_detect_multiple_changes() {
-        let fm = make_frontmatter("New Title", TaskStatus::Done, TaskPriority::High, Some("user-2"));
+        let fm = make_frontmatter(
+            "New Title",
+            TaskStatus::Done,
+            TaskPriority::High,
+            Some("user-2"),
+        );
         let cached = make_cached("Old Title", TaskStatus::Todo, TaskPriority::Low, None);
         let changes = detect_changes(&fm, &cached);
         assert_eq!(changes.len(), 4);

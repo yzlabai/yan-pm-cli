@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use notify::RecommendedWatcher;
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebouncedEvent, Debouncer};
-use notify::RecommendedWatcher;
 use tokio::sync::mpsc as tokio_mpsc;
 
 const DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
@@ -34,7 +34,10 @@ impl FileWatcher {
     pub fn watch_workspace(&mut self, workspace_path: &str) -> Result<()> {
         let tasks_dir = PathBuf::from(workspace_path).join(".yan-pm").join("tasks");
         if !tasks_dir.exists() {
-            tracing::debug!("Tasks dir not found, skipping watch: {}", tasks_dir.display());
+            tracing::debug!(
+                "Tasks dir not found, skipping watch: {}",
+                tasks_dir.display()
+            );
             return Ok(());
         }
 
@@ -71,8 +74,7 @@ impl FileWatcher {
                 .context(format!("Failed to watch {}", tasks_dir.display()))?;
         }
 
-        self.watched
-            .insert(workspace_path.to_string(), tasks_dir);
+        self.watched.insert(workspace_path.to_string(), tasks_dir);
 
         tracing::info!("Watching: {workspace_path}/.yan-pm/tasks/");
         Ok(())
