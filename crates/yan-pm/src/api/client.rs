@@ -131,6 +131,16 @@ impl ApiClient {
         self.get(&format!("/projects/{project_id}")).await
     }
 
+    pub async fn update_project(
+        &self,
+        project_id: &str,
+        data: &UpdateProjectData,
+    ) -> Result<Project, ApiError> {
+        validate_project_ref(project_id)?;
+        let body = serde_json::to_value(data).map_err(|e| ApiError::Parse(e.to_string()))?;
+        self.patch(&format!("/projects/{project_id}"), &body).await
+    }
+
     // ---- Tasks ----
 
     pub async fn list_tasks(

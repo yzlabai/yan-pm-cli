@@ -137,6 +137,10 @@ pub struct Project {
     pub description: Option<String>,
     pub status: ProjectStatus,
     pub my_role: Option<String>,
+    #[serde(default)]
+    pub repo_url: Option<String>,
+    #[serde(default)]
+    pub settings: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -286,6 +290,21 @@ pub struct ExecutionReport {
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProjectData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sync_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

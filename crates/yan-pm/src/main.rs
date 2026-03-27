@@ -290,6 +290,11 @@ enum Commands {
         #[command(subcommand)]
         action: DaemonAction,
     },
+    /// 项目管理
+    Project {
+        #[command(subcommand)]
+        action: ProjectAction,
+    },
     /// 自更新到最新版本
     SelfUpdate,
 }
@@ -341,6 +346,19 @@ enum DaemonAction {
     Install,
     /// 卸载系统服务
     Uninstall,
+}
+
+#[derive(Subcommand)]
+enum ProjectAction {
+    /// 同步本地项目信息到云端（repoUrl / techStack / CLAUDE.md）
+    SyncInfo {
+        /// 跳过确认，直接上传
+        #[arg(long)]
+        yes: bool,
+        /// 只展示 diff，不上传
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[tokio::main]
@@ -426,6 +444,11 @@ async fn main() {
             ),
             AutoRunAction::Off => cli::auto_run::disable(),
             AutoRunAction::Status => cli::auto_run::status(),
+        },
+        Commands::Project { action } => match action {
+            ProjectAction::SyncInfo { yes, dry_run } => {
+                cli::project::sync_info(cli.url.as_deref(), cli.token.as_deref(), cli.json, yes, dry_run).await
+            }
         },
         Commands::SelfUpdate => cli::self_update::run().await,
         Commands::Daemon { action } => match action {

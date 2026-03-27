@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod auto_run;
 pub mod daemon;
+pub mod detect;
 pub mod issue;
 pub mod login;
 pub mod project;
