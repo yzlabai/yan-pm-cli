@@ -292,6 +292,21 @@ impl ApiClient {
         .await
     }
 
+    pub async fn report_execution(
+        &self,
+        project_id: &str,
+        task_id: &str,
+        data: &ExecutionReport,
+    ) -> Result<Value, ApiError> {
+        validate_project_ref(project_id)?;
+        validate_resource_id(task_id, "任务 ID")?;
+        let body = serde_json::to_value(data).unwrap_or_default();
+        self.post(&format!(
+            "/projects/{project_id}/tasks/{task_id}/executions"
+        ), &body)
+        .await
+    }
+
     pub async fn heartbeat(
         &self,
         project_id: &str,

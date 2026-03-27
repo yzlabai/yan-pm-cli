@@ -169,6 +169,8 @@ pub struct Task {
     pub priority: TaskPriority,
     pub status: TaskStatus,
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub sort_order: Option<i32>,
     pub due_date: Option<String>,
     pub locked_by: Option<String>,
@@ -265,6 +267,25 @@ pub struct ReportResult {
 pub struct HeartbeatResult {
     pub ok: bool,
     pub last_heartbeat: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionReport {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+    pub started_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<String>,
+    pub status: String, // "succeeded" | "failed" | "cancelled"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

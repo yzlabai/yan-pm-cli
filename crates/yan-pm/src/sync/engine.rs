@@ -351,6 +351,7 @@ mod tests {
             priority,
             status,
             tags: vec![],
+            depends_on: vec![],
             assignee: assignee.map(String::from),
             issue: None,
             due: None,

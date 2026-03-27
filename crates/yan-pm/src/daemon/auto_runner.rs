@@ -10,13 +10,14 @@ use tokio::time;
 
 use crate::agent::{self, AgentOptions, AgentResult, find_agent};
 use crate::api::client::{ApiClient, UpdateTaskData};
-use crate::api::types::TaskStatus;
+use crate::api::types::{ExecutionReport, TaskStatus};
 use crate::local::directory::{AutoRunConfig, LocalDirectory};
 
 /// A single running task execution.
 struct RunningTask {
     task_id: String,
     project_id: String,
+    workspace_id: Option<String>,
     /// Agent runs in a dedicated OS thread (ACP LocalSet is !Send)
     thread_handle: Option<std::thread::JoinHandle<AgentResult>>,
     heartbeat_running: Arc<AtomicBool>,
@@ -141,6 +142,19 @@ impl AutoRunner {
             .filter(|t| t.frontmatter.id.is_some()) // Must have server ID
             .filter(|t| !t.frontmatter.id.as_ref().is_some_and(|id| failed_ids.contains(id)))
             .collect();
+
+        // Filter out tasks with unfinished dependencies
+        {
+            let done_ids: HashSet<&str> = local_tasks
+                .iter()
+                .filter(|t| t.frontmatter.status == TaskStatus::Done)
+                .filter_map(|t| t.frontmatter.id.as_deref())
+                .collect();
+            todo_tasks.retain(|t| {
+                t.frontmatter.depends_on.is_empty()
+                    || t.frontmatter.depends_on.iter().all(|dep| done_ids.contains(dep.as_str()))
+            });
+        }
 
         // Apply priority filter
         if !slot.config.filter_priority.is_empty() {
@@ -283,6 +297,7 @@ impl AutoRunner {
         slot.running.push(RunningTask {
             task_id,
             project_id,
+            workspace_id: ws_id,
             thread_handle: Some(handle),
             heartbeat_running,
             heartbeat_handle,
@@ -364,6 +379,22 @@ impl AutoRunner {
                     if result.success { "完成" } else { "失败" },
                 );
                 let _ = self.client.add_comment(&task.project_id, &task.task_id, &comment).await;
+
+                // Report execution (best-effort, failure does not block unlock)
+                let finished_at = chrono::Utc::now();
+                let exec_report = ExecutionReport {
+                    workspace_id: task.workspace_id.clone(),
+                    started_at: task.started_at.to_rfc3339(),
+                    finished_at: Some(finished_at.to_rfc3339()),
+                    status: if result.success { "succeeded" } else { "failed" }.to_string(),
+                    exit_code: Some(result.exit_code),
+                    cost_usd: result.cost_usd,
+                    summary: Some(crate::output::truncate_utf8(&result.summary, 500).to_string()),
+                    error_message: if result.success { None } else { Some(crate::output::truncate_utf8(&result.summary, 500).to_string()) },
+                };
+                if let Err(e) = self.client.report_execution(&task.project_id, &task.task_id, &exec_report).await {
+                    tracing::warn!("AutoRunner: failed to report execution for {}: {e}", task.task_id);
+                }
 
                 // Unlock
                 let _ = self.client.unlock_task(&task.project_id, &task.task_id).await;

@@ -19,6 +19,8 @@ pub struct TaskFrontmatter {
     pub status: TaskStatus,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -166,6 +168,7 @@ mod tests {
             priority: TaskPriority::Urgent,
             status: TaskStatus::Todo,
             tags: vec!["auth".to_string()],
+            depends_on: vec![],
             assignee: None,
             issue: None,
             due: None,
