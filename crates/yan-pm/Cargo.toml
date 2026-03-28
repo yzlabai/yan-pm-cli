@@ -58,6 +58,9 @@ async-trait = "0.1"
 # Config
 toml = "0.8"
 
+# SQLite (WAL event store)
+rusqlite = { version = "0.34", features = ["bundled"] }
+
 # Self-update (tar.gz extraction)
 flate2 = "1"
 tar = "0.4"
