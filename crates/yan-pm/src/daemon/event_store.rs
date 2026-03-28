@@ -32,7 +32,7 @@ impl EventType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "task_started" => Some(EventType::TaskStarted),
             "task_completed" => Some(EventType::TaskCompleted),
@@ -273,7 +273,7 @@ mod tests {
             EventType::Error,
         ] {
             let s = et.as_str();
-            let parsed = EventType::from_str(s).expect("round-trip");
+            let parsed = EventType::parse(s).expect("round-trip");
             assert_eq!(parsed.as_str(), s);
         }
     }

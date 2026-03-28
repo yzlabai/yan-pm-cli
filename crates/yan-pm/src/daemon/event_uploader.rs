@@ -57,7 +57,7 @@ impl EventUploader {
             let events_json: Vec<Value> = task_events
                 .iter()
                 .map(|e| {
-                    serde_json::from_str::<Value>(&e.payload).unwrap_or_else(|_| Value::Null)
+                    serde_json::from_str::<Value>(&e.payload).unwrap_or(Value::Null)
                 })
                 .collect();
 

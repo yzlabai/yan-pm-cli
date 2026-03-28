@@ -587,7 +587,7 @@ impl AutoRunner {
                 } else {
                     // Check if task had side effects (tool_call events in event store)
                     let has_side_effects =
-                        self.event_store.as_ref().map_or(false, |store| {
+                        self.event_store.as_ref().is_some_and(|store| {
                             store
                                 .query(&task.task_id, None, 100)
                                 .unwrap_or_default()
