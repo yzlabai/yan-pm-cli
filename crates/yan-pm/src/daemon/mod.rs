@@ -1,4 +1,5 @@
 pub mod auto_runner;
+pub mod event_uploader;
 pub mod event_store;
 pub mod file_watcher;
 pub mod heartbeat;

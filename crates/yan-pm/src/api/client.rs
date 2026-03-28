@@ -108,6 +108,10 @@ impl ApiClient {
         self.request(reqwest::Method::POST, path, Some(body)).await
     }
 
+    pub async fn post_raw(&self, path: &str, body: &serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        self.post(path, body).await
+    }
+
     async fn post_empty<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
         self.request(reqwest::Method::POST, path, None).await
     }
