@@ -127,3 +127,47 @@ pub async fn is_command_available(command: &str) -> bool {
 fn agents_toml_path() -> PathBuf {
     config::config_dir().join("agents.toml")
 }
+
+use super::backend::AgentBackend;
+use super::backends::builtin_backends;
+
+/// Find the best available backend by name.
+pub fn find_backend(name: &str) -> Option<Box<dyn AgentBackend>> {
+    builtin_backends().into_iter().find(|b| b.name() == name)
+}
+
+/// List all backends sorted by priority (lower = higher priority).
+pub async fn list_backends_by_priority() -> Vec<Box<dyn AgentBackend>> {
+    let mut backends = builtin_backends();
+    backends.sort_by_key(|b| b.priority());
+    backends
+}
+
+/// Find the best available backend matching capability requirements.
+/// Checks backends in priority order and returns the first available one
+/// that satisfies all requested capabilities.
+pub async fn find_capable_backend(
+    needs_images: bool,
+    needs_mcp: bool,
+    needs_worktree: bool,
+) -> Option<Box<dyn AgentBackend>> {
+    let mut backends = builtin_backends();
+    backends.sort_by_key(|b| b.priority());
+
+    for backend in backends {
+        let caps = backend.capabilities();
+        if needs_images && !caps.supports_images {
+            continue;
+        }
+        if needs_mcp && !caps.supports_mcp {
+            continue;
+        }
+        if needs_worktree && !caps.supports_worktree {
+            continue;
+        }
+        if is_command_available(backend.command()).await {
+            return Some(backend);
+        }
+    }
+    None
+}
