@@ -105,7 +105,7 @@ yan-pm-cli daemon install                    # 注册系统服务（开机自启
 yan-pm-cli daemon uninstall                  # 卸载系统服务
 ```
 
-Daemon 功能：30s 轮询同步、文件变更即时推送（500ms debounce）、2min 心跳、AutoRunner 自动执行。
+Daemon 功能：30s 轮询同步、文件变更即时推送（500ms debounce）、2min 心跳、AutoRunner 自动执行、WAL 事件持久化（10s 批量上报 + 离线补传）。
 
 ### Auto-Run 自动执行
 
@@ -238,9 +238,10 @@ cargo build --release     # 发布构建（strip + LTO，~6-10 MB）
 |------|------|
 | `cli/` | 26 命令处理（含 setup） |
 | `api/` | HTTP 客户端（22 API 方法） |
-| `agent/` | ACP Agent 注册表 + 会话管理 |
+| `agent/` | ACP Agent 注册表 + 会话管理 + 状态机 + Backend trait |
+| `agent/backends/` | Claude / Codex / Gemini 后端实现（能力声明 + 优先级） |
 | `runner/` | 任务编排（single/batch/specific） |
 | `mcp/` | MCP stdio Server（14 tools） |
 | `local/` | 本地文件系统 + frontmatter 解析 |
 | `sync/` | 双向同步引擎（LWW 冲突解决） |
-| `daemon/` | 守护进程 + AutoRunner + 文件监听 |
+| `daemon/` | 守护进程 + AutoRunner + 文件监听 + WAL 事件持久化 |
