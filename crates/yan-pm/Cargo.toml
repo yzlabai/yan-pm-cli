@@ -10,6 +10,10 @@ description = "yan-pm-cli — yan.chat 项目管理终端 CLI（任务管理 + M
 name = "yan-pm-cli"
 path = "src/main.rs"
 
+[lib]
+name = "yan_pm_cli"
+path = "src/lib.rs"
+
 [dependencies]
 # CLI
 clap = { version = "4.6", features = ["derive", "env"] }
