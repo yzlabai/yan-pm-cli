@@ -10,6 +10,8 @@ use crate::config;
 use crate::local::directory::LocalDirectory;
 
 use super::auto_runner::AutoRunner;
+use super::event_store::EventStore;
+use super::event_uploader::EventUploader;
 use super::file_watcher::FileWatcher;
 use super::heartbeat::HeartbeatManager;
 use super::pid;
@@ -19,6 +21,8 @@ use super::sync_manager::SyncManager;
 const SYNC_INTERVAL: Duration = Duration::from_secs(30);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(120);
 const AUTO_RUN_INTERVAL: Duration = Duration::from_secs(30);
+const EVENT_UPLOAD_INTERVAL: Duration = Duration::from_secs(10);
+const COMPACT_INTERVAL: Duration = Duration::from_secs(86400); // 24h
 
 /// Fork the current process and run daemon in background (Unix only).
 #[cfg(unix)]
@@ -97,6 +101,21 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
     pid::acquire_lock()?;
 
     let client = Arc::new(make_daemon_client(url, token)?);
+
+    // Initialize event store
+    let events_db_path = config::config_dir().join("events.db");
+    let event_store = Arc::new(
+        EventStore::open(&events_db_path)
+            .context("Failed to open event store")?
+    );
+
+    // Run startup compact (delete synced events older than 7 days)
+    if let Err(e) = event_store.compact(7) {
+        tracing::warn!("Event store compact on startup failed: {e}");
+    }
+
+    let event_uploader = EventUploader::new(event_store.clone(), client.clone());
+
     let pid = std::process::id();
 
     // Setup logging to file
@@ -173,10 +192,14 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
     let mut sync_interval = tokio::time::interval(SYNC_INTERVAL);
     let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL);
     let mut auto_run_interval = tokio::time::interval(AUTO_RUN_INTERVAL);
+    let mut event_upload_interval = tokio::time::interval(EVENT_UPLOAD_INTERVAL);
+    let mut compact_interval = tokio::time::interval(COMPACT_INTERVAL);
     // Skip the immediate first tick
     sync_interval.tick().await;
     heartbeat_interval.tick().await;
     auto_run_interval.tick().await;
+    event_upload_interval.tick().await;
+    compact_interval.tick().await;
 
     let mut shutdown_rx_clone = shutdown_rx.clone();
 
@@ -250,6 +273,18 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
                 }
             }
 
+            _ = event_upload_interval.tick() => {
+                if let Err(e) = event_uploader.upload_batch().await {
+                    tracing::warn!("Event upload error: {e}");
+                }
+            }
+
+            _ = compact_interval.tick() => {
+                if let Err(e) = event_store.compact(7) {
+                    tracing::warn!("Event compact error: {e}");
+                }
+            }
+
             _ = shutdown_rx_clone.changed() => {
                 if *shutdown_rx_clone.borrow() {
                     tracing::info!("Shutting down daemon...");
@@ -261,6 +296,8 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
 
     // Cleanup
     auto_runner.shutdown().await;
+    // Flush pending events before exit
+    event_uploader.flush().await;
     file_watcher.stop();
     pid::remove_pid();
     DaemonState::remove();
