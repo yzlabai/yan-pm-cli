@@ -180,6 +180,7 @@ async fn run_task(
             model: opts.model.clone(),
             verbose: opts.verbose,
         },
+        None,
     )
     .await;
 

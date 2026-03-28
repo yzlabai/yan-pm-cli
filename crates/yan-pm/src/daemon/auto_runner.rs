@@ -316,6 +316,7 @@ impl AutoRunner {
                         model: None,
                         verbose: false,
                     },
+                    None,
                 )
                 .await
                 {

@@ -9,6 +9,8 @@ use futures::lock::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use super::registry::{is_command_available, AgentDefinition};
+use super::state::{AgentErrorCode, ConnectionState};
+use crate::daemon::event_store::EventStore;
 
 /// Result from agent execution
 #[derive(Debug)]
@@ -34,6 +36,14 @@ pub struct AgentOptions {
     pub verbose: bool,
 }
 
+/// Context for event recording during agent execution
+pub struct ExecutionContext {
+    pub task_id: String,
+    pub workspace_id: String,
+    pub project_id: String,
+    pub event_store: Arc<EventStore>,
+}
+
 /// Permission policy for agent tool calls
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PermissionPolicy {
@@ -43,6 +53,14 @@ pub enum PermissionPolicy {
     Deny,
 }
 
+/// Event recording context for the ACP client
+struct EventRecordCtx {
+    task_id: String,
+    workspace_id: String,
+    project_id: String,
+    event_store: Arc<EventStore>,
+}
+
 /// Internal client state for ACP communication
 #[allow(dead_code)]
 struct YanPmAcpClient {
@@ -50,6 +68,7 @@ struct YanPmAcpClient {
     output: Arc<Mutex<String>>,
     verbose: bool,
     cancelled: Arc<AtomicBool>,
+    event_ctx: Option<EventRecordCtx>,
 }
 
 #[async_trait::async_trait(?Send)]
@@ -118,6 +137,18 @@ impl acp::Client for YanPmAcpClient {
                 }
             }
             acp::SessionUpdate::ToolCall(tc) => {
+                if let Some(ectx) = &self.event_ctx {
+                    let payload = serde_json::json!({
+                        "project_id": &ectx.project_id,
+                        "tool": &tc.title,
+                    });
+                    let _ = ectx.event_store.insert(
+                        &ectx.task_id,
+                        &ectx.workspace_id,
+                        "tool_call",
+                        &payload.to_string(),
+                    );
+                }
                 if self.verbose {
                     eprintln!("{}", format!("  [tool call] {}", tc.title).dimmed());
                 }
@@ -139,8 +170,41 @@ impl acp::Client for YanPmAcpClient {
 ///
 /// Spawns the agent process, connects via ACP over stdio, sends the prompt,
 /// and collects the result.
-pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Result<AgentResult> {
+pub async fn execute_agent(
+    agent: &AgentDefinition,
+    options: AgentOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<AgentResult> {
+    let mut conn_state = ConnectionState::Idle;
+
+    // Helper closure to record state changes
+    let record_state = |from: ConnectionState,
+                        to: ConnectionState,
+                        error_code: Option<&AgentErrorCode>,
+                        ctx: Option<&ExecutionContext>| {
+        if let Some(ctx) = ctx {
+            let payload = serde_json::json!({
+                "project_id": &ctx.project_id,
+                "from": from.to_string(),
+                "to": to.to_string(),
+                "error_code": error_code.map(|e| e.as_str()),
+            });
+            let _ = ctx.event_store.insert(
+                &ctx.task_id,
+                &ctx.workspace_id,
+                "state_change",
+                &payload.to_string(),
+            );
+        }
+    };
+
     if !is_command_available(&agent.command).await {
+        record_state(
+            conn_state,
+            ConnectionState::Stopped,
+            Some(&AgentErrorCode::AgentNotFound),
+            ctx,
+        );
         return Ok(AgentResult {
             success: false,
             summary: format!(
@@ -170,11 +234,19 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
     let output = Arc::new(Mutex::new(String::new()));
     let cancelled = Arc::new(AtomicBool::new(false));
 
+    let event_ctx = ctx.map(|c| EventRecordCtx {
+        task_id: c.task_id.clone(),
+        workspace_id: c.workspace_id.clone(),
+        project_id: c.project_id.clone(),
+        event_store: c.event_store.clone(),
+    });
+
     let client_handler = YanPmAcpClient {
         policy,
         output: output.clone(),
         verbose: options.verbose,
         cancelled: cancelled.clone(),
+        event_ctx,
     };
 
     // Build args
@@ -186,8 +258,12 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
         args.push(model.clone());
     }
 
+    // Transition to Connecting before spawn
+    conn_state = ConnectionState::Connecting;
+    record_state(ConnectionState::Idle, conn_state, None, ctx);
+
     // Spawn agent process
-    let mut child = tokio::process::Command::new(&agent.command)
+    let mut child = match tokio::process::Command::new(&agent.command)
         .args(&args)
         .current_dir(&options.cwd)
         .envs(&agent.env)
@@ -196,7 +272,19 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
-        .spawn()?;
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            record_state(
+                conn_state,
+                ConnectionState::Stopped,
+                Some(&AgentErrorCode::AgentSpawnFailed),
+                ctx,
+            );
+            return Err(e.into());
+        }
+    };
 
     let stdin = child.stdin.take().expect("stdin piped");
     let stdout = child.stdout.take().expect("stdout piped");
@@ -233,6 +321,12 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
     let cwd = options.cwd.clone();
     let verbose = options.verbose;
 
+    // Clone context data for use inside the local_set closure
+    let ctx_task_id = ctx.map(|c| c.task_id.clone());
+    let ctx_workspace_id = ctx.map(|c| c.workspace_id.clone());
+    let ctx_project_id = ctx.map(|c| c.project_id.clone());
+    let ctx_event_store = ctx.map(|c| c.event_store.clone());
+
     const ACP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
     let acp_future = local_set.run_until(async move {
         let outgoing = stdin.compat_write();
@@ -258,6 +352,18 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
 
         if let Err(e) = init_result {
             return Err(anyhow::anyhow!("ACP 初始化失败: {e}"));
+        }
+
+        // Record connecting -> ready after successful init
+        if let (Some(store), Some(tid), Some(wid), Some(pid)) =
+            (&ctx_event_store, &ctx_task_id, &ctx_workspace_id, &ctx_project_id)
+        {
+            let payload = serde_json::json!({
+                "project_id": pid,
+                "from": "connecting",
+                "to": "ready",
+            });
+            let _ = store.insert(tid, wid, "state_change", &payload.to_string());
         }
 
         // Create session
@@ -291,6 +397,12 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
     let acp_result = match tokio::time::timeout(ACP_TIMEOUT, acp_future).await {
         Ok(result) => result,
         Err(_) => {
+            record_state(
+                conn_state,
+                ConnectionState::Stopped,
+                Some(&AgentErrorCode::AgentTimeout),
+                ctx,
+            );
             let _ = child.kill().await;
             return Ok(AgentResult {
                 success: false,
@@ -312,6 +424,8 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
 
     match acp_result {
         Ok((session_id, resp)) => {
+            record_state(conn_state, ConnectionState::Stopped, None, ctx);
+
             let success = match &resp.stop_reason {
                 acp::StopReason::EndTurn | acp::StopReason::MaxTokens => exit_code == 0,
                 acp::StopReason::Cancelled => false,
@@ -333,28 +447,37 @@ pub async fn execute_agent(agent: &AgentDefinition, options: AgentOptions) -> Re
                 exit_code,
             })
         }
-        Err(e) => Ok(AgentResult {
-            success: false,
-            summary: format!(
-                "{}{}{}",
-                e,
-                if !collected_output.is_empty() {
-                    format!("\n\n{collected_output}")
-                } else {
-                    String::new()
-                },
-                if !stderr_text.is_empty() {
-                    format!(
-                        "\n\nstderr:\n{}",
-                        crate::output::format::truncate_utf8(&stderr_text, 1000)
-                    )
-                } else {
-                    String::new()
-                }
-            ),
-            cost_usd: None,
-            session_id: None,
-            exit_code,
-        }),
+        Err(e) => {
+            record_state(
+                conn_state,
+                ConnectionState::Error,
+                Some(&AgentErrorCode::ProtocolError),
+                ctx,
+            );
+
+            Ok(AgentResult {
+                success: false,
+                summary: format!(
+                    "{}{}{}",
+                    e,
+                    if !collected_output.is_empty() {
+                        format!("\n\n{collected_output}")
+                    } else {
+                        String::new()
+                    },
+                    if !stderr_text.is_empty() {
+                        format!(
+                            "\n\nstderr:\n{}",
+                            crate::output::format::truncate_utf8(&stderr_text, 1000)
+                        )
+                    } else {
+                        String::new()
+                    }
+                ),
+                cost_usd: None,
+                session_id: None,
+                exit_code,
+            })
+        }
     }
 }
