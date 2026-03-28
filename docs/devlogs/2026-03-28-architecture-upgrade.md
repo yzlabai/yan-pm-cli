@@ -71,7 +71,7 @@
 ## 待办（后续迭代）
 
 - [ ] 服务端实现 `/api/projects/{id}/tasks/{id}/events` POST/GET 端点
-- [ ] `cli/agents.rs` 展示 capabilities 信息
+- [x] `cli/agents.rs` 展示 capabilities 信息 → 见 `devlogs/2026-03-28-dashboard-agents.md`
 - [ ] `session.rs` 改为接收 `&dyn AgentBackend` 替代 `AgentDefinition`
 - [ ] 前端观测台消费事件流
 - [ ] `auto_runner.rs` 任务分配时使用 `find_capable_backend()` 按能力选 Agent

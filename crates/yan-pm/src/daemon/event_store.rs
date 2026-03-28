@@ -181,6 +181,40 @@ impl EventStore {
         Ok(())
     }
 
+    /// Query active tasks: those with `task_started` but no `task_completed`/`task_failed`.
+    /// Returns one event per active task (the most recent `task_started`).
+    pub fn query_active_tasks(&self) -> Result<Vec<Event>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT e.id, e.task_id, e.workspace_id, e.event_type, e.payload, e.created_at, e.synced_at
+             FROM events e
+             WHERE e.event_type = 'task_started'
+               AND NOT EXISTS (
+                   SELECT 1 FROM events e2
+                   WHERE e2.task_id = e.task_id
+                     AND e2.event_type IN ('task_completed', 'task_failed')
+                     AND e2.id > e.id
+               )
+             ORDER BY e.created_at DESC",
+        )?;
+        let rows = stmt.query_map([], row_to_event)?;
+        rows.map(|r| r.map_err(Into::into)).collect()
+    }
+
+    /// Query recently completed/failed tasks, ordered by newest first.
+    pub fn query_recent_completed(&self, limit: i64) -> Result<Vec<Event>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_id, workspace_id, event_type, payload, created_at, synced_at
+             FROM events
+             WHERE event_type IN ('task_completed', 'task_failed')
+             ORDER BY created_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], row_to_event)?;
+        rows.map(|r| r.map_err(Into::into)).collect()
+    }
+
     /// Delete synced events older than `days` days. Returns number of deleted rows.
     pub fn compact(&self, days: i64) -> Result<usize> {
         let cutoff = (Utc::now() - chrono::Duration::days(days)).to_rfc3339();
@@ -259,6 +293,46 @@ mod tests {
         // Nothing to compact (not synced yet).
         let deleted = store.compact(0).unwrap();
         assert_eq!(deleted, 0);
+    }
+
+    #[test]
+    fn test_query_active_tasks() {
+        let (store, _dir) = open_store();
+        // Task A: started, not completed → active
+        store
+            .insert("task-a", "ws-1", EventType::TaskStarted.as_str(), r#"{"agent":"claude"}"#)
+            .unwrap();
+        // Task B: started then completed → not active
+        store
+            .insert("task-b", "ws-1", EventType::TaskStarted.as_str(), r#"{"agent":"claude"}"#)
+            .unwrap();
+        store
+            .insert("task-b", "ws-1", EventType::TaskCompleted.as_str(), r#"{"success":true}"#)
+            .unwrap();
+
+        let active = store.query_active_tasks().unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].task_id, "task-a");
+    }
+
+    #[test]
+    fn test_query_recent_completed() {
+        let (store, _dir) = open_store();
+        store
+            .insert("task-1", "ws-1", EventType::TaskCompleted.as_str(), "{}")
+            .unwrap();
+        store
+            .insert("task-2", "ws-1", EventType::TaskFailed.as_str(), "{}")
+            .unwrap();
+        store
+            .insert("task-3", "ws-1", EventType::TaskStarted.as_str(), "{}")
+            .unwrap();
+
+        let completed = store.query_recent_completed(10).unwrap();
+        assert_eq!(completed.len(), 2); // task_started excluded
+        // Most recent first
+        assert_eq!(completed[0].task_id, "task-2");
+        assert_eq!(completed[1].task_id, "task-1");
     }
 
     #[test]

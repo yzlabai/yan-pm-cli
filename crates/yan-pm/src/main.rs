@@ -280,7 +280,17 @@ enum Commands {
     /// 手动同步本地任务文件与云端
     Sync,
     /// 列出可用的 AI Agent
-    Agents,
+    Agents {
+        /// 仅显示正在执行的 agent
+        #[arg(long)]
+        running: bool,
+    },
+    /// 全局 Dashboard：纵览所有 workspace 状态
+    Dashboard {
+        /// 紧凑模式（单行 per workspace）
+        #[arg(long)]
+        compact: bool,
+    },
     /// 自动执行任务配置
     #[command(name = "auto-run")]
     AutoRun {
@@ -671,7 +681,10 @@ async fn main() {
         }
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,
-        Commands::Agents => cli::agents::run().await,
+        Commands::Agents { running } => cli::agents::run(running, cli.json).await,
+        Commands::Dashboard { compact } => {
+            cli::dashboard::run(cli.json, compact).await
+        }
         Commands::AutoRun { action } => match action {
             AutoRunAction::On {
                 budget,
