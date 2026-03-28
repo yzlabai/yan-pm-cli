@@ -810,3 +810,24 @@ fn test_create_desc_alias() {
         "should show --description flag"
     );
 }
+
+// =====================
+// setup 命令测试
+// =====================
+
+#[test]
+fn test_setup_help() {
+    cmd()
+        .arg("setup")
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--target"))
+        .stdout(predicate::str::contains("--uninstall"))
+        .stdout(predicate::str::contains("--status"));
+}
+
+#[test]
+fn test_setup_status() {
+    cmd().arg("setup").arg("--status").assert().success();
+}

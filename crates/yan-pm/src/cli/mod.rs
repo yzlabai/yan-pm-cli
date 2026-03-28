@@ -6,6 +6,7 @@ pub mod issue;
 pub mod login;
 pub mod project;
 pub mod self_update;
+pub mod setup;
 pub mod start;
 pub mod sync;
 pub mod task;

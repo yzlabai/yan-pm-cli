@@ -297,6 +297,27 @@ enum Commands {
         #[command(subcommand)]
         action: ProjectAction,
     },
+    /// 安装 yan-pm 到 AI 工具（Claude Code / VS Code / Cursor）
+    Setup {
+        /// 指定目标工具 (claude/vscode/cursor)
+        #[arg(long)]
+        target: Option<String>,
+        /// 卸载配置
+        #[arg(long)]
+        uninstall: bool,
+        /// 查看安装状态
+        #[arg(long)]
+        status: bool,
+        /// 手动指定 yan-pm-cli 二进制路径
+        #[arg(long)]
+        binary_path: Option<String>,
+        /// MCP 注册范围 (user/project，仅 Claude Code)
+        #[arg(long, default_value = "user")]
+        scope: String,
+        /// 跳过确认提示
+        #[arg(long)]
+        yes: bool,
+    },
     /// 自更新到最新版本
     SelfUpdate,
 }
@@ -678,6 +699,22 @@ async fn main() {
                 .await
             }
         },
+        Commands::Setup {
+            target,
+            uninstall,
+            status,
+            binary_path,
+            scope,
+            yes,
+        } => {
+            if status {
+                cli::setup::status().await
+            } else if uninstall {
+                cli::setup::uninstall(target.as_deref()).await
+            } else {
+                cli::setup::install(target.as_deref(), binary_path.as_deref(), &scope, yes).await
+            }
+        }
         Commands::SelfUpdate => cli::self_update::run().await,
         Commands::Daemon { action } => match action {
             DaemonAction::Start { foreground } => {
