@@ -25,6 +25,7 @@ struct RunningTask {
     heartbeat_running: Arc<AtomicBool>,
     heartbeat_handle: JoinHandle<()>,
     started_at: chrono::DateTime<chrono::Utc>,
+    retry_count: u32,
 }
 
 /// Per-workspace runner slot.
@@ -36,6 +37,8 @@ struct RunnerSlot {
     total_cost: f64,
     /// Task IDs that failed in this session — skip to avoid infinite retry
     failed_task_ids: HashSet<String>,
+    /// Tasks pending retry: (task_id, retry_count, retry_after timestamp)
+    pending_retry: Vec<(String, u32, chrono::DateTime<chrono::Utc>)>,
 }
 
 /// AutoRunner manages automatic task execution across workspaces in the daemon.
@@ -72,6 +75,7 @@ impl AutoRunner {
                     running: Vec::new(),
                     total_cost: 0.0,
                     failed_task_ids: HashSet::new(),
+                    pending_retry: Vec::new(),
                 },
             );
         }
@@ -115,43 +119,147 @@ impl AutoRunner {
     }
 
     async fn check_slot(&mut self, path: &str) -> Result<()> {
-        let slot = match self.slots.get(path) {
-            Some(s) => s,
-            None => return Ok(()),
-        };
+        // Early checks — use a block so the immutable borrow is dropped
+        {
+            let slot = match self.slots.get(path) {
+                Some(s) => s,
+                None => return Ok(()),
+            };
 
-        if !slot.config.enabled {
-            return Ok(());
-        }
-
-        // Check concurrency
-        let active_count = slot
-            .running
-            .iter()
-            .filter(|t| {
-                t.thread_handle
-                    .as_ref()
-                    .map(|h| !h.is_finished())
-                    .unwrap_or(false)
-            })
-            .count();
-        if active_count >= slot.config.concurrency as usize {
-            return Ok(());
-        }
-
-        // Check budget
-        if let Some(budget) = slot.config.budget {
-            if slot.total_cost >= budget {
-                tracing::info!(
-                    "AutoRunner: budget exhausted for {path} (${:.2} / ${:.2})",
-                    slot.total_cost,
-                    budget
-                );
+            if !slot.config.enabled {
                 return Ok(());
+            }
+
+            // Check concurrency
+            let active_count = slot
+                .running
+                .iter()
+                .filter(|t| {
+                    t.thread_handle
+                        .as_ref()
+                        .map(|h| !h.is_finished())
+                        .unwrap_or(false)
+                })
+                .count();
+            if active_count >= slot.config.concurrency as usize {
+                return Ok(());
+            }
+
+            // Check budget
+            if let Some(budget) = slot.config.budget {
+                if slot.total_cost >= budget {
+                    tracing::info!(
+                        "AutoRunner: budget exhausted for {path} (${:.2} / ${:.2})",
+                        slot.total_cost,
+                        budget
+                    );
+                    return Ok(());
+                }
             }
         }
 
+        // Check for pending retries before picking new tasks
+        let now = chrono::Utc::now();
+        let retry_info = {
+            let slot = self.slots.get_mut(path).unwrap();
+            let ready_idx = slot
+                .pending_retry
+                .iter()
+                .position(|(_, _, retry_after)| now >= *retry_after);
+            ready_idx.map(|idx| slot.pending_retry.remove(idx))
+        };
+
+        if let Some((retry_task_id, retry_count, _)) = retry_info {
+            // Launch a retry for this task
+            let slot = self.slots.get(path).unwrap();
+            let project_id = slot.project_id.clone();
+            let workspace_path = slot.workspace_path.clone();
+            let agent_name = slot.config.agent.clone();
+
+            // Skip if already running
+            if slot.running.iter().any(|r| r.task_id == retry_task_id) {
+                return Ok(());
+            }
+
+            // Re-lock for retry
+            let workspace_entry =
+                crate::config::find_workspace_link(Some(Path::new(&workspace_path)));
+            let ws_id = workspace_entry.and_then(|w| w.workspace_id);
+            match self
+                .client
+                .lock_task(&project_id, &retry_task_id, ws_id.as_deref())
+                .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    if e.is_conflict() {
+                        tracing::debug!(
+                            "AutoRunner: retry task {retry_task_id} already locked, skipping"
+                        );
+                    } else {
+                        tracing::warn!(
+                            "AutoRunner: failed to lock retry task {retry_task_id}: {e}"
+                        );
+                    }
+                    return Ok(());
+                }
+            }
+
+            // Keep status as InProgress (don't re-transition from Todo)
+            let _ = self
+                .client
+                .update_task(
+                    &project_id,
+                    &retry_task_id,
+                    &UpdateTaskData {
+                        status: Some(TaskStatus::InProgress),
+                        ..Default::default()
+                    },
+                )
+                .await;
+
+            tracing::info!(
+                "AutoRunner: retrying task {} ({}/{}) in {}",
+                retry_task_id,
+                retry_count,
+                2, // MAX_RETRIES
+                workspace_path
+            );
+
+            // Read task content from local files for prompt
+            let local_dir = LocalDirectory::new(Path::new(&workspace_path));
+            let local_task = local_dir.find_task_by_id(&retry_task_id)?;
+            let (title, description) = match &local_task {
+                Some(lt) => (lt.frontmatter.title.clone(), lt.body.clone()),
+                None => {
+                    tracing::warn!(
+                        "AutoRunner: retry task {retry_task_id} not found locally, skipping"
+                    );
+                    let _ = self
+                        .client
+                        .unlock_task(&project_id, &retry_task_id)
+                        .await;
+                    return Ok(());
+                }
+            };
+
+            return self
+                .launch_task(
+                    path,
+                    &retry_task_id,
+                    &project_id,
+                    &workspace_path,
+                    &agent_name,
+                    ws_id,
+                    &title,
+                    &description,
+                    retry_count,
+                )
+                .await;
+        }
+
         // Find next todo task from local files
+        let slot = self.slots.get(path).unwrap();
         let local_dir = LocalDirectory::new(Path::new(&slot.workspace_path));
         let local_tasks = local_dir.scan_tasks().unwrap_or_default();
         let failed_ids = &slot.failed_task_ids;
@@ -256,12 +364,43 @@ impl AutoRunner {
             workspace_path
         );
 
+        let title = next_task.frontmatter.title.clone();
+        let description = next_task.body.clone();
+
+        self.launch_task(
+            path,
+            &task_id,
+            &project_id,
+            &workspace_path,
+            &agent_name,
+            ws_id,
+            &title,
+            &description,
+            0,
+        )
+        .await
+    }
+
+    /// Launch a task (new or retry) — resolve agent, start heartbeat, spawn thread.
+    #[allow(clippy::too_many_arguments)]
+    async fn launch_task(
+        &mut self,
+        path: &str,
+        task_id: &str,
+        project_id: &str,
+        workspace_path: &str,
+        agent_name: &str,
+        ws_id: Option<String>,
+        title: &str,
+        description: &str,
+        retry_count: u32,
+    ) -> Result<()> {
         // Resolve agent
-        let agent = match find_agent(&agent_name) {
+        let agent = match find_agent(agent_name) {
             Some(a) => a,
             None => {
                 tracing::error!("AutoRunner: agent '{agent_name}' not found");
-                let _ = self.client.unlock_task(&project_id, &task_id).await;
+                let _ = self.client.unlock_task(project_id, task_id).await;
                 return Ok(());
             }
         };
@@ -271,8 +410,8 @@ impl AutoRunner {
         let hb_flag = heartbeat_running.clone();
         let hb_url = self.client.base_url().to_string();
         let hb_token = self.client.token().to_string();
-        let hb_project = project_id.clone();
-        let hb_task = task_id.clone();
+        let hb_project = project_id.to_string();
+        let hb_task = task_id.to_string();
         let heartbeat_handle = tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(60));
             interval.tick().await;
@@ -288,8 +427,6 @@ impl AutoRunner {
         });
 
         // Build prompt
-        let title = next_task.frontmatter.title.clone();
-        let description = next_task.body.clone();
         let prompt = format!(
             "# 任务: {title}\n\n## 描述\n\n{description}\n\n## 要求\n\n\
              1. 在当前代码库中实现所需的变更\n\
@@ -300,7 +437,7 @@ impl AutoRunner {
 
         // Spawn agent execution in a dedicated thread with its own runtime
         // (ACP uses LocalSet which is !Send, can't use tokio::spawn)
-        let cwd = workspace_path.clone();
+        let cwd = workspace_path.to_string();
         let agent_clone = agent.clone();
         let remaining_budget = self
             .slots
@@ -341,16 +478,19 @@ impl AutoRunner {
         });
 
         // Record running task
+        let task_id_owned = task_id.to_string();
+        let project_id_owned = project_id.to_string();
         let slot = self.slots.get_mut(path).unwrap();
 
         if let Some(store) = &self.event_store {
             let payload = serde_json::json!({
-                "project_id": &project_id,
-                "agent": &agent_name,
-                "title": &title,
+                "project_id": &project_id_owned,
+                "agent": agent_name,
+                "title": title,
+                "retry_count": retry_count,
             });
             if let Err(e) = store.insert(
-                &task_id,
+                &task_id_owned,
                 ws_id.as_deref().unwrap_or(""),
                 "task_started",
                 &payload.to_string(),
@@ -360,13 +500,14 @@ impl AutoRunner {
         }
 
         slot.running.push(RunningTask {
-            task_id,
-            project_id,
+            task_id: task_id_owned,
+            project_id: project_id_owned,
             workspace_id: ws_id,
             thread_handle: Some(handle),
             heartbeat_running,
             heartbeat_handle,
             started_at: chrono::Utc::now(),
+            retry_count,
         });
 
         Ok(())
@@ -411,22 +552,20 @@ impl AutoRunner {
                     },
                 };
 
+                const MAX_RETRIES: u32 = 2;
+
                 // Track cost
                 if let Some(cost) = result.cost_usd {
                     slot.total_cost += cost;
                 }
 
-                // Update task status
-                let new_status = if result.success {
-                    TaskStatus::Done
-                } else {
-                    // Remember failed task to avoid infinite retry
-                    slot.failed_task_ids.insert(task.task_id.clone());
-                    TaskStatus::Todo
-                };
-
+                // Record event
                 if let Some(store) = &self.event_store {
-                    let event_type = if result.success { "task_completed" } else { "task_failed" };
+                    let event_type = if result.success {
+                        "task_completed"
+                    } else {
+                        "task_failed"
+                    };
                     let payload = serde_json::json!({
                         "project_id": &task.project_id,
                         "exit_code": result.exit_code,
@@ -442,35 +581,124 @@ impl AutoRunner {
                     }
                 }
 
-                let _ = self
-                    .client
-                    .update_task(
-                        &task.project_id,
-                        &task.task_id,
-                        &UpdateTaskData {
-                            status: Some(new_status),
-                            ..Default::default()
-                        },
-                    )
-                    .await;
+                // Determine whether this failure should be retried
+                let will_retry = if result.success {
+                    false
+                } else {
+                    // Check if task had side effects (tool_call events in event store)
+                    let has_side_effects =
+                        self.event_store.as_ref().map_or(false, |store| {
+                            store
+                                .query(&task.task_id, None, 100)
+                                .unwrap_or_default()
+                                .iter()
+                                .any(|e| e.event_type == "tool_call")
+                        });
 
-                // Add comment
-                let cost_str = result
-                    .cost_usd
-                    .map(|c| format!(" | ${:.4}", c))
-                    .unwrap_or_default();
-                let emoji = if result.success { "✅" } else { "❌" };
-                let summary_truncated = crate::output::truncate_utf8(&result.summary, 2000);
-                let comment = format!(
-                    "{emoji} AutoRunner {}{cost_str}\n\n{summary_truncated}",
-                    if result.success { "完成" } else { "失败" },
-                );
-                let _ = self
-                    .client
-                    .add_comment(&task.project_id, &task.task_id, &comment)
-                    .await;
+                    if has_side_effects || task.retry_count >= MAX_RETRIES {
+                        // Has side effects or retries exhausted -> mark failed
+                        slot.failed_task_ids.insert(task.task_id.clone());
 
-                // Report execution (best-effort, failure does not block unlock)
+                        let status_note = if has_side_effects {
+                            "失败（已有副作用，需人工检查）"
+                        } else {
+                            "失败（重试次数耗尽）"
+                        };
+
+                        let _ = self
+                            .client
+                            .update_task(
+                                &task.project_id,
+                                &task.task_id,
+                                &UpdateTaskData {
+                                    status: Some(TaskStatus::Todo),
+                                    ..Default::default()
+                                },
+                            )
+                            .await;
+
+                        let cost_str = result
+                            .cost_usd
+                            .map(|c| format!(" | ${:.4}", c))
+                            .unwrap_or_default();
+                        let summary_truncated =
+                            crate::output::truncate_utf8(&result.summary, 2000);
+                        let comment = format!(
+                            "❌ AutoRunner {status_note}{cost_str}\n\n{summary_truncated}"
+                        );
+                        let _ = self
+                            .client
+                            .add_comment(&task.project_id, &task.task_id, &comment)
+                            .await;
+
+                        false
+                    } else {
+                        // No side effects and retries remaining -> schedule retry
+                        let retry_count = task.retry_count + 1;
+                        let delay_secs: i64 = if retry_count == 1 { 5 } else { 15 };
+                        let retry_after = chrono::Utc::now()
+                            + chrono::Duration::seconds(delay_secs);
+                        slot.pending_retry.push((
+                            task.task_id.clone(),
+                            retry_count,
+                            retry_after,
+                        ));
+
+                        tracing::info!(
+                            "AutoRunner: task {} will retry ({}/{}), after {}s",
+                            task.task_id,
+                            retry_count,
+                            MAX_RETRIES,
+                            delay_secs
+                        );
+
+                        let cost_str = result
+                            .cost_usd
+                            .map(|c| format!(" | ${:.4}", c))
+                            .unwrap_or_default();
+                        let summary_truncated =
+                            crate::output::truncate_utf8(&result.summary, 2000);
+                        let comment = format!(
+                            "🔄 AutoRunner 重试 ({retry_count}/{MAX_RETRIES}){cost_str}\n\n{summary_truncated}"
+                        );
+                        let _ = self
+                            .client
+                            .add_comment(&task.project_id, &task.task_id, &comment)
+                            .await;
+
+                        true
+                    }
+                };
+
+                if result.success {
+                    // Success path: update status, comment, archive
+                    let _ = self
+                        .client
+                        .update_task(
+                            &task.project_id,
+                            &task.task_id,
+                            &UpdateTaskData {
+                                status: Some(TaskStatus::Done),
+                                ..Default::default()
+                            },
+                        )
+                        .await;
+
+                    let cost_str = result
+                        .cost_usd
+                        .map(|c| format!(" | ${:.4}", c))
+                        .unwrap_or_default();
+                    let summary_truncated =
+                        crate::output::truncate_utf8(&result.summary, 2000);
+                    let comment =
+                        format!("✅ AutoRunner 完成{cost_str}\n\n{summary_truncated}");
+                    let _ = self
+                        .client
+                        .add_comment(&task.project_id, &task.task_id, &comment)
+                        .await;
+                }
+
+                // Report execution (always, for both retry and final failure)
                 let finished_at = chrono::Utc::now();
                 let exec_report = ExecutionReport {
                     workspace_id: task.workspace_id.clone(),
@@ -484,11 +712,15 @@ impl AutoRunner {
                     .to_string(),
                     exit_code: Some(result.exit_code),
                     cost_usd: result.cost_usd,
-                    summary: Some(crate::output::truncate_utf8(&result.summary, 500).to_string()),
+                    summary: Some(
+                        crate::output::truncate_utf8(&result.summary, 500).to_string(),
+                    ),
                     error_message: if result.success {
                         None
                     } else {
-                        Some(crate::output::truncate_utf8(&result.summary, 500).to_string())
+                        Some(
+                            crate::output::truncate_utf8(&result.summary, 500).to_string(),
+                        )
                     },
                 };
                 if let Err(e) = self
@@ -502,29 +734,33 @@ impl AutoRunner {
                     );
                 }
 
-                // Unlock
+                // Unlock (always, even for retries — retry will re-lock)
                 let _ = self
                     .client
                     .unlock_task(&task.project_id, &task.task_id)
                     .await;
 
-                // Archive local file if done
+                // Archive local file only on success
                 if result.success {
                     let local_dir = LocalDirectory::new(Path::new(&slot.workspace_path));
-                    if let Ok(Some(local_task)) = local_dir.find_task_by_id(&task.task_id) {
+                    if let Ok(Some(local_task)) = local_dir.find_task_by_id(&task.task_id)
+                    {
                         let _ = local_dir.archive_task(&local_task.file_path);
                     }
                 }
 
                 let dur = chrono::Utc::now() - task.started_at;
+                let status_label = if result.success {
+                    "completed"
+                } else if will_retry {
+                    "failed (will retry)"
+                } else {
+                    "failed"
+                };
                 tracing::info!(
                     "AutoRunner: task {} {} in {}s",
                     task.task_id,
-                    if result.success {
-                        "completed"
-                    } else {
-                        "failed"
-                    },
+                    status_label,
                     dur.num_seconds()
                 );
             } else {
