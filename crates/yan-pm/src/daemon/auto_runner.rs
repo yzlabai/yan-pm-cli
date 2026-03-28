@@ -13,6 +13,8 @@ use crate::api::client::{ApiClient, UpdateTaskData};
 use crate::api::types::{ExecutionReport, TaskStatus};
 use crate::local::directory::{AutoRunConfig, LocalDirectory};
 
+use super::event_store::EventStore;
+
 /// A single running task execution.
 struct RunningTask {
     task_id: String,
@@ -40,6 +42,7 @@ struct RunnerSlot {
 pub struct AutoRunner {
     client: Arc<ApiClient>,
     slots: HashMap<String, RunnerSlot>,
+    event_store: Option<Arc<EventStore>>,
 }
 
 impl AutoRunner {
@@ -47,7 +50,12 @@ impl AutoRunner {
         Self {
             client,
             slots: HashMap::new(),
+            event_store: None,
         }
+    }
+
+    pub fn set_event_store(&mut self, store: Arc<EventStore>) {
+        self.event_store = Some(store);
     }
 
     /// Register or update a workspace slot.
@@ -334,6 +342,23 @@ impl AutoRunner {
 
         // Record running task
         let slot = self.slots.get_mut(path).unwrap();
+
+        if let Some(store) = &self.event_store {
+            let payload = serde_json::json!({
+                "project_id": &project_id,
+                "agent": &agent_name,
+                "title": &title,
+            });
+            if let Err(e) = store.insert(
+                &task_id,
+                ws_id.as_deref().unwrap_or(""),
+                "task_started",
+                &payload.to_string(),
+            ) {
+                tracing::warn!("Failed to record task_started event: {e}");
+            }
+        }
+
         slot.running.push(RunningTask {
             task_id,
             project_id,
@@ -399,6 +424,24 @@ impl AutoRunner {
                     slot.failed_task_ids.insert(task.task_id.clone());
                     TaskStatus::Todo
                 };
+
+                if let Some(store) = &self.event_store {
+                    let event_type = if result.success { "task_completed" } else { "task_failed" };
+                    let payload = serde_json::json!({
+                        "project_id": &task.project_id,
+                        "exit_code": result.exit_code,
+                        "cost_usd": result.cost_usd,
+                    });
+                    if let Err(e) = store.insert(
+                        &task.task_id,
+                        task.workspace_id.as_deref().unwrap_or(""),
+                        event_type,
+                        &payload.to_string(),
+                    ) {
+                        tracing::warn!("Failed to record {event_type} event: {e}");
+                    }
+                }
+
                 let _ = self
                     .client
                     .update_task(

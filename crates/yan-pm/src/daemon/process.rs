@@ -182,6 +182,7 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
             auto_runner.set_workspace(&ws.path, &ws.project_id, local_config.auto_run);
         }
     }
+    auto_runner.set_event_store(event_store.clone());
 
     tracing::info!(
         "Daemon ready: {} workspace(s) monitored",
