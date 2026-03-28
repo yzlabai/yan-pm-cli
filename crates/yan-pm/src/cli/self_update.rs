@@ -61,18 +61,27 @@ pub async fn run() -> Result<()> {
         .user_agent(format!("{BINARY_NAME}/{current}"))
         .build()?;
 
-    let release: GithubRelease = client
+    let response = client
         .get(format!(
             "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         ))
         .send()
         .await
-        .context("无法连接 GitHub API")?
-        .error_for_status()
-        .context("GitHub API 请求失败（可能还没有发布版本）")?
-        .json()
-        .await
-        .context("解析 release 信息失败")?;
+        .context("无法连接 GitHub API")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 403 && body.contains("rate limit") {
+            anyhow::bail!("GitHub API 请求频率超限，请稍后再试");
+        } else if status.as_u16() == 404 {
+            anyhow::bail!("未找到发布版本（仓库可能是 private 或尚未发布 release）");
+        } else {
+            anyhow::bail!("GitHub API 请求失败 (HTTP {status}): {body}");
+        }
+    }
+
+    let release: GithubRelease = response.json().await.context("解析 release 信息失败")?;
 
     let remote_version = parse_version(&release.tag_name).unwrap_or(&release.tag_name);
 
