@@ -40,6 +40,8 @@ pub struct App {
     pub should_quit: bool,
     pub mode: ViewMode,
     pub log_view: Option<LogViewState>,
+    /// Transient status message shown in footer (auto-clears after a few ticks)
+    pub status_message: Option<(String, Instant)>,
     event_store: Option<Arc<EventStore>>,
 }
 
@@ -56,6 +58,7 @@ impl App {
             should_quit: false,
             mode: ViewMode::Dashboard,
             log_view: None,
+            status_message: None,
             event_store,
         }
     }
@@ -323,7 +326,13 @@ impl App {
             }
             KeyCode::Char('e') => {
                 // Export log
-                let _ = self.export_log();
+                if let Some(filename) = self.export_log() {
+                    self.status_message =
+                        Some((format!("Exported to {}", filename), Instant::now()));
+                } else {
+                    self.status_message =
+                        Some(("Export failed".to_string(), Instant::now()));
+                }
             }
             _ => {}
         }
@@ -353,6 +362,12 @@ impl App {
                 match &self.mode {
                     ViewMode::Dashboard => self.refresh(),
                     ViewMode::LogView => self.refresh_log(),
+                }
+                // Auto-clear status message after 3 seconds
+                if let Some((_, created)) = &self.status_message {
+                    if created.elapsed() > Duration::from_secs(3) {
+                        self.status_message = None;
+                    }
                 }
                 last_tick = Instant::now();
             }

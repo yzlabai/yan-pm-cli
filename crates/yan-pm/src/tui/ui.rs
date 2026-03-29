@@ -395,6 +395,14 @@ fn render_log_footer(f: &mut Frame, area: Rect, app: &App) {
         ));
     }
 
+    // Show status message (e.g. export result)
+    if let Some((msg, _)) = &app.status_message {
+        spans.push(Span::styled(
+            format!("  {}", msg),
+            Style::default().fg(Color::Green),
+        ));
+    }
+
     let footer = Paragraph::new(Line::from(spans))
         .style(Style::default().fg(Color::DarkGray));
 
