@@ -86,10 +86,7 @@ pub fn collect_workspace_data(
     let config = local_dir.load_config();
 
     let project_name = config.as_ref().map(|c| c.project_name.clone());
-    let auto_run_enabled = config
-        .as_ref()
-        .map(|c| c.auto_run.enabled)
-        .unwrap_or(false);
+    let auto_run_enabled = config.as_ref().map(|c| c.auto_run.enabled).unwrap_or(false);
     let auto_run_agent = config
         .as_ref()
         .filter(|c| c.auto_run.enabled)

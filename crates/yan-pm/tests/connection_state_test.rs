@@ -28,10 +28,7 @@ fn test_normal_lifecycle() {
 fn test_error_and_retry() {
     // Connecting → Error(Timeout)
     let t1 = ConnectionState::Connecting
-        .transition(
-            ConnectionState::Error,
-            Some(AgentErrorCode::AgentTimeout),
-        )
+        .transition(ConnectionState::Error, Some(AgentErrorCode::AgentTimeout))
         .unwrap();
     assert_eq!(t1.from, ConnectionState::Connecting);
     assert_eq!(t1.to, ConnectionState::Error);
@@ -56,10 +53,7 @@ fn test_error_and_retry() {
 #[test]
 fn test_ready_to_error() {
     let t = ConnectionState::Ready
-        .transition(
-            ConnectionState::Error,
-            Some(AgentErrorCode::AgentCrashed),
-        )
+        .transition(ConnectionState::Error, Some(AgentErrorCode::AgentCrashed))
         .unwrap();
     assert_eq!(t.from, ConnectionState::Ready);
     assert_eq!(t.to, ConnectionState::Error);

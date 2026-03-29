@@ -2,10 +2,10 @@
 
 pub mod config;
 pub mod agent {
-    pub mod state;
     pub mod backend;
     pub mod backends;
     pub mod registry;
+    pub mod state;
 }
 pub mod daemon {
     pub mod event_store;

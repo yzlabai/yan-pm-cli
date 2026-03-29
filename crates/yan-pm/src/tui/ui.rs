@@ -19,7 +19,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
 fn render_dashboard(f: &mut Frame, app: &App) {
     let chunks = Layout::vertical([
-        Constraint::Length(3),  // header
+        Constraint::Length(3), // header
         Constraint::Min(5),    // workspace list
         Constraint::Length(1), // footer
     ])
@@ -46,7 +46,10 @@ fn render_header(f: &mut Frame, area: Rect, app: &App) {
     let summary = &app.data.summary;
     let info = Span::raw(format!(
         " · {} workspaces · {} active · {} completed · ${:.2}",
-        summary.total_workspaces, summary.running_tasks, summary.completed_tasks, summary.total_cost,
+        summary.total_workspaces,
+        summary.running_tasks,
+        summary.completed_tasks,
+        summary.total_cost,
     ));
 
     let header = Paragraph::new(Line::from(vec![
@@ -200,7 +203,7 @@ fn render_dashboard_footer(f: &mut Frame, area: Rect) {
 
 fn render_log(f: &mut Frame, app: &App) {
     let chunks = Layout::vertical([
-        Constraint::Length(3),  // header
+        Constraint::Length(3), // header
         Constraint::Min(5),    // log content
         Constraint::Length(1), // footer / search bar
     ])
@@ -239,17 +242,11 @@ fn render_log_header(f: &mut Frame, area: Rect, app: &App) {
     }
 
     if !log.auto_scroll {
-        spans.push(Span::styled(
-            " · PAUSED",
-            Style::default().fg(Color::Red),
-        ));
+        spans.push(Span::styled(" · PAUSED", Style::default().fg(Color::Red)));
     }
 
-    let header = Paragraph::new(Line::from(spans)).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Agent Log "),
-    );
+    let header = Paragraph::new(Line::from(spans))
+        .block(Block::default().borders(Borders::ALL).title(" Agent Log "));
 
     f.render_widget(header, area);
 }
@@ -308,51 +305,46 @@ fn format_event_line(event: &crate::daemon::event_store::Event) -> Line<'static>
     };
 
     // Extract a human-readable summary from payload
-    let summary = match event.event_type.as_str() {
-        "tool_call" => parse_payload_field(&event.payload, "tool")
-            .unwrap_or_else(|| "(unknown tool)".to_string()),
-        "agent_output" => {
-            let text = parse_payload_field(&event.payload, "text")
-                .unwrap_or_default();
-            // Truncate to single line, max 120 chars
-            let line = text.lines().next().unwrap_or("");
-            if line.len() > 120 {
-                format!("{}…", &line[..119])
-            } else {
-                line.to_string()
+    let summary =
+        match event.event_type.as_str() {
+            "tool_call" => parse_payload_field(&event.payload, "tool")
+                .unwrap_or_else(|| "(unknown tool)".to_string()),
+            "agent_output" => {
+                let text = parse_payload_field(&event.payload, "text").unwrap_or_default();
+                // Truncate to single line, max 120 chars
+                let line = text.lines().next().unwrap_or("");
+                if line.len() > 120 {
+                    format!("{}…", &line[..119])
+                } else {
+                    line.to_string()
+                }
             }
-        }
-        "state_change" => {
-            let from = parse_payload_field(&event.payload, "from").unwrap_or_default();
-            let to = parse_payload_field(&event.payload, "to").unwrap_or_default();
-            format!("{} → {}", from, to)
-        }
-        "task_started" => parse_payload_field(&event.payload, "title")
-            .unwrap_or_else(|| "started".to_string()),
-        "task_completed" | "task_failed" => parse_payload_field(&event.payload, "title")
-            .unwrap_or_else(|| event.event_type.clone()),
-        _ => {
-            // Show truncated raw payload
-            let p = &event.payload;
-            if p.len() > 80 {
-                format!("{}…", &p[..79])
-            } else {
-                p.to_string()
+            "state_change" => {
+                let from = parse_payload_field(&event.payload, "from").unwrap_or_default();
+                let to = parse_payload_field(&event.payload, "to").unwrap_or_default();
+                format!("{} → {}", from, to)
             }
-        }
-    };
+            "task_started" => parse_payload_field(&event.payload, "title")
+                .unwrap_or_else(|| "started".to_string()),
+            "task_completed" | "task_failed" => parse_payload_field(&event.payload, "title")
+                .unwrap_or_else(|| event.event_type.clone()),
+            _ => {
+                // Show truncated raw payload
+                let p = &event.payload;
+                if p.len() > 80 {
+                    format!("{}…", &p[..79])
+                } else {
+                    p.to_string()
+                }
+            }
+        };
 
     Line::from(vec![
-        Span::styled(
-            format!("{} ", time),
-            Style::default().fg(Color::DarkGray),
-        ),
+        Span::styled(format!("{} ", time), Style::default().fg(Color::DarkGray)),
         Span::raw(format!("{} ", icon)),
         Span::styled(
             format!("{:14}", event.event_type),
-            Style::default()
-                .fg(color)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
         ),
         Span::raw(format!(" {}", summary)),
     ])
@@ -403,8 +395,7 @@ fn render_log_footer(f: &mut Frame, area: Rect, app: &App) {
         ));
     }
 
-    let footer = Paragraph::new(Line::from(spans))
-        .style(Style::default().fg(Color::DarkGray));
+    let footer = Paragraph::new(Line::from(spans)).style(Style::default().fg(Color::DarkGray));
 
     f.render_widget(footer, area);
 }

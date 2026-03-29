@@ -51,20 +51,25 @@ impl EventUploader {
         // Group events by task_id.
         let mut by_task: HashMap<String, Vec<&super::event_store::Event>> = HashMap::new();
         for event in &events {
-            by_task.entry(event.task_id.clone()).or_default().push(event);
+            by_task
+                .entry(event.task_id.clone())
+                .or_default()
+                .push(event);
         }
 
         let mut synced_ids: Vec<i64> = Vec::new();
 
         for (task_id, task_events) in &by_task {
             // Extract project_id from first event payload.
-            let project_id = task_events
-                .iter()
-                .find_map(|e| {
-                    serde_json::from_str::<Value>(&e.payload)
-                        .ok()
-                        .and_then(|v| v.get("project_id").and_then(|p| p.as_str()).map(String::from))
-                });
+            let project_id = task_events.iter().find_map(|e| {
+                serde_json::from_str::<Value>(&e.payload)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("project_id")
+                            .and_then(|p| p.as_str())
+                            .map(String::from)
+                    })
+            });
 
             let Some(project_id) = project_id else {
                 warn!(task_id = %task_id, "project_id missing in event payload, marking synced to avoid retry loop");

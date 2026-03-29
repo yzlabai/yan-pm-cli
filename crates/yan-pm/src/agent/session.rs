@@ -370,9 +370,12 @@ pub async fn execute_agent(
         }
 
         // Record connecting -> ready after successful init
-        if let (Some(store), Some(tid), Some(wid), Some(pid)) =
-            (&ctx_event_store, &ctx_task_id, &ctx_workspace_id, &ctx_project_id)
-        {
+        if let (Some(store), Some(tid), Some(wid), Some(pid)) = (
+            &ctx_event_store,
+            &ctx_task_id,
+            &ctx_workspace_id,
+            &ctx_project_id,
+        ) {
             let payload = serde_json::json!({
                 "project_id": pid,
                 "from": "connecting",

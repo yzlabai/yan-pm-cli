@@ -8,8 +8,8 @@ use anyhow::Result;
 use tokio::task::JoinHandle;
 use tokio::time;
 
-use crate::agent::{self, find_backend, AgentBackend, AgentOptions, AgentResult};
 use crate::agent::registry::find_capable_backend;
+use crate::agent::{self, find_backend, AgentBackend, AgentOptions, AgentResult};
 use crate::api::client::{ApiClient, UpdateTaskData};
 use crate::api::types::{ExecutionReport, TaskStatus};
 use crate::local::directory::{AutoRunConfig, LocalDirectory};
@@ -255,10 +255,7 @@ impl AutoRunner {
                     tracing::warn!(
                         "AutoRunner: retry task {retry_task_id} not found locally, skipping"
                     );
-                    let _ = self
-                        .client
-                        .unlock_task(&project_id, &retry_task_id)
-                        .await;
+                    let _ = self.client.unlock_task(&project_id, &retry_task_id).await;
                     return Ok(());
                 }
             };
@@ -439,16 +436,15 @@ impl AutoRunner {
         retry_count: u32,
     ) -> Result<()> {
         // Resolve agent backend (prefer built-in, fallback to AgentDefinition)
-        let backend: Box<dyn AgentBackend> =
-            if let Some(b) = find_backend(agent_name) {
-                b
-            } else if let Some(def) = agent::find_agent(agent_name) {
-                Box::new(def)
-            } else {
-                tracing::error!("AutoRunner: agent '{agent_name}' not found");
-                let _ = self.client.unlock_task(project_id, task_id).await;
-                return Ok(());
-            };
+        let backend: Box<dyn AgentBackend> = if let Some(b) = find_backend(agent_name) {
+            b
+        } else if let Some(def) = agent::find_agent(agent_name) {
+            Box::new(def)
+        } else {
+            tracing::error!("AutoRunner: agent '{agent_name}' not found");
+            let _ = self.client.unlock_task(project_id, task_id).await;
+            return Ok(());
+        };
 
         // Start heartbeat
         let heartbeat_running = Arc::new(AtomicBool::new(true));
@@ -630,14 +626,13 @@ impl AutoRunner {
                     false
                 } else {
                     // Check if task had side effects (tool_call events in event store)
-                    let has_side_effects =
-                        self.event_store.as_ref().is_some_and(|store| {
-                            store
-                                .query(&task.task_id, None, 100)
-                                .unwrap_or_default()
-                                .iter()
-                                .any(|e| e.event_type == "tool_call")
-                        });
+                    let has_side_effects = self.event_store.as_ref().is_some_and(|store| {
+                        store
+                            .query(&task.task_id, None, 100)
+                            .unwrap_or_default()
+                            .iter()
+                            .any(|e| e.event_type == "tool_call")
+                    });
 
                     if has_side_effects || task.retry_count >= MAX_RETRIES {
                         // Has side effects or retries exhausted -> mark failed
@@ -665,11 +660,9 @@ impl AutoRunner {
                             .cost_usd
                             .map(|c| format!(" | ${:.4}", c))
                             .unwrap_or_default();
-                        let summary_truncated =
-                            crate::output::truncate_utf8(&result.summary, 2000);
-                        let comment = format!(
-                            "❌ AutoRunner {status_note}{cost_str}\n\n{summary_truncated}"
-                        );
+                        let summary_truncated = crate::output::truncate_utf8(&result.summary, 2000);
+                        let comment =
+                            format!("❌ AutoRunner {status_note}{cost_str}\n\n{summary_truncated}");
                         let _ = self
                             .client
                             .add_comment(&task.project_id, &task.task_id, &comment)
@@ -680,13 +673,10 @@ impl AutoRunner {
                         // No side effects and retries remaining -> schedule retry
                         let retry_count = task.retry_count + 1;
                         let delay_secs: i64 = if retry_count == 1 { 5 } else { 15 };
-                        let retry_after = chrono::Utc::now()
-                            + chrono::Duration::seconds(delay_secs);
-                        slot.pending_retry.push((
-                            task.task_id.clone(),
-                            retry_count,
-                            retry_after,
-                        ));
+                        let retry_after =
+                            chrono::Utc::now() + chrono::Duration::seconds(delay_secs);
+                        slot.pending_retry
+                            .push((task.task_id.clone(), retry_count, retry_after));
 
                         tracing::info!(
                             "AutoRunner: task {} will retry ({}/{}), after {}s",
@@ -700,8 +690,7 @@ impl AutoRunner {
                             .cost_usd
                             .map(|c| format!(" | ${:.4}", c))
                             .unwrap_or_default();
-                        let summary_truncated =
-                            crate::output::truncate_utf8(&result.summary, 2000);
+                        let summary_truncated = crate::output::truncate_utf8(&result.summary, 2000);
                         let comment = format!(
                             "🔄 AutoRunner 重试 ({retry_count}/{MAX_RETRIES}){cost_str}\n\n{summary_truncated}"
                         );
@@ -732,10 +721,8 @@ impl AutoRunner {
                         .cost_usd
                         .map(|c| format!(" | ${:.4}", c))
                         .unwrap_or_default();
-                    let summary_truncated =
-                        crate::output::truncate_utf8(&result.summary, 2000);
-                    let comment =
-                        format!("✅ AutoRunner 完成{cost_str}\n\n{summary_truncated}");
+                    let summary_truncated = crate::output::truncate_utf8(&result.summary, 2000);
+                    let comment = format!("✅ AutoRunner 完成{cost_str}\n\n{summary_truncated}");
                     let _ = self
                         .client
                         .add_comment(&task.project_id, &task.task_id, &comment)
@@ -756,15 +743,11 @@ impl AutoRunner {
                     .to_string(),
                     exit_code: Some(result.exit_code),
                     cost_usd: result.cost_usd,
-                    summary: Some(
-                        crate::output::truncate_utf8(&result.summary, 500).to_string(),
-                    ),
+                    summary: Some(crate::output::truncate_utf8(&result.summary, 500).to_string()),
                     error_message: if result.success {
                         None
                     } else {
-                        Some(
-                            crate::output::truncate_utf8(&result.summary, 500).to_string(),
-                        )
+                        Some(crate::output::truncate_utf8(&result.summary, 500).to_string())
                     },
                 };
                 if let Err(e) = self
@@ -787,8 +770,7 @@ impl AutoRunner {
                 // Archive local file only on success
                 if result.success {
                     let local_dir = LocalDirectory::new(Path::new(&slot.workspace_path));
-                    if let Ok(Some(local_task)) = local_dir.find_task_by_id(&task.task_id)
-                    {
+                    if let Ok(Some(local_task)) = local_dir.find_task_by_id(&task.task_id) {
                         let _ = local_dir.archive_task(&local_task.file_path);
                     }
                 }

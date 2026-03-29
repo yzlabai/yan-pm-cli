@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
@@ -9,6 +9,7 @@ use tracing::{debug, info};
 /// Event type enum for agent execution events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum EventType {
     TaskStarted,
     TaskCompleted,
@@ -20,6 +21,7 @@ pub enum EventType {
     Error,
 }
 
+#[allow(dead_code)]
 impl EventType {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -58,6 +60,7 @@ pub struct Event {
     pub event_type: String,
     pub payload: String,
     pub created_at: String,
+    #[allow(dead_code)]
     pub synced_at: Option<String>,
 }
 
@@ -131,12 +134,7 @@ impl EventStore {
     }
 
     /// Query events for a task, optionally after a sequence id, ordered by id ASC.
-    pub fn query(
-        &self,
-        task_id: &str,
-        after_seq: Option<i64>,
-        limit: i64,
-    ) -> Result<Vec<Event>> {
+    pub fn query(&self, task_id: &str, after_seq: Option<i64>, limit: i64) -> Result<Vec<Event>> {
         let conn = self.conn.lock().unwrap();
         let after = after_seq.unwrap_or(0);
         let mut stmt = conn.prepare(
@@ -303,14 +301,29 @@ mod tests {
         let (store, _dir) = open_store();
         // Task A: started, not completed → active
         store
-            .insert("task-a", "ws-1", EventType::TaskStarted.as_str(), r#"{"agent":"claude"}"#)
+            .insert(
+                "task-a",
+                "ws-1",
+                EventType::TaskStarted.as_str(),
+                r#"{"agent":"claude"}"#,
+            )
             .unwrap();
         // Task B: started then completed → not active
         store
-            .insert("task-b", "ws-1", EventType::TaskStarted.as_str(), r#"{"agent":"claude"}"#)
+            .insert(
+                "task-b",
+                "ws-1",
+                EventType::TaskStarted.as_str(),
+                r#"{"agent":"claude"}"#,
+            )
             .unwrap();
         store
-            .insert("task-b", "ws-1", EventType::TaskCompleted.as_str(), r#"{"success":true}"#)
+            .insert(
+                "task-b",
+                "ws-1",
+                EventType::TaskCompleted.as_str(),
+                r#"{"success":true}"#,
+            )
             .unwrap();
 
         let active = store.query_active_tasks().unwrap();
@@ -333,7 +346,7 @@ mod tests {
 
         let completed = store.query_recent_completed(10).unwrap();
         assert_eq!(completed.len(), 2); // task_started excluded
-        // Most recent first
+                                        // Most recent first
         assert_eq!(completed[0].task_id, "task-2");
         assert_eq!(completed[1].task_id, "task-1");
     }

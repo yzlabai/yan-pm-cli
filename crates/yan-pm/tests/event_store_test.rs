@@ -13,13 +13,28 @@ fn test_insert_and_query() {
 
     // Insert 2 events for task-1, 1 for task-2
     let id1 = store
-        .insert("task-1", "ws-1", EventType::TaskStarted.as_str(), r#"{"step":1}"#)
+        .insert(
+            "task-1",
+            "ws-1",
+            EventType::TaskStarted.as_str(),
+            r#"{"step":1}"#,
+        )
         .unwrap();
     let id2 = store
-        .insert("task-1", "ws-1", EventType::ToolCall.as_str(), r#"{"step":2}"#)
+        .insert(
+            "task-1",
+            "ws-1",
+            EventType::ToolCall.as_str(),
+            r#"{"step":2}"#,
+        )
         .unwrap();
     store
-        .insert("task-2", "ws-1", EventType::TaskStarted.as_str(), r#"{"step":3}"#)
+        .insert(
+            "task-2",
+            "ws-1",
+            EventType::TaskStarted.as_str(),
+            r#"{"step":3}"#,
+        )
         .unwrap();
 
     // task-1 should return 2 events

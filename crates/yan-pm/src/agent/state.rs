@@ -24,6 +24,7 @@ impl fmt::Display for ConnectionState {
     }
 }
 
+#[allow(dead_code)]
 impl ConnectionState {
     pub fn transition(
         &self,
@@ -76,6 +77,7 @@ impl AgentErrorCode {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StateTransition {
     pub from: ConnectionState,
     pub to: ConnectionState,

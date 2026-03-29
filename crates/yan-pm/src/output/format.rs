@@ -212,13 +212,8 @@ fn status_color(s: TaskStatus) -> Color {
 
 pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
     let daemon_icon = if data.daemon_running { "✓" } else { "✗" };
-    println!(
-        "╭─────────────────────────────────────────────────────────────────╮"
-    );
-    println!(
-        "│{:^65}│",
-        format!("yan-pm Dashboard")
-    );
+    println!("╭─────────────────────────────────────────────────────────────────╮");
+    println!("│{:^65}│", format!("yan-pm Dashboard"));
     println!(
         "│{:^65}│",
         format!(
@@ -226,37 +221,34 @@ pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
             data.summary.total_workspaces, daemon_icon
         )
     );
-    println!(
-        "╰─────────────────────────────────────────────────────────────────╯"
-    );
+    println!("╰─────────────────────────────────────────────────────────────────╯");
     println!();
 
     if data.workspaces.is_empty() {
-        println!("{}", "没有已关联的工作区。使用 `yan-pm link <project>` 关联。".yellow());
+        println!(
+            "{}",
+            "没有已关联的工作区。使用 `yan-pm link <project>` 关联。".yellow()
+        );
         return;
     }
 
     for (i, ws) in data.workspaces.iter().enumerate() {
-        let project_display = ws
-            .project_name
-            .as_deref()
-            .unwrap_or(&ws.project_id);
+        let project_display = ws.project_name.as_deref().unwrap_or(&ws.project_id);
         let auto_run = if ws.auto_run_enabled {
             let agent = ws.auto_run_agent.as_deref().unwrap_or("claude");
             let budget = ws
                 .auto_run_budget
                 .map(|b| format!(", budget: ${:.0}", b))
                 .unwrap_or_default();
-            format!("ON ({agent}{budget})")
-                .green()
-                .to_string()
+            format!("ON ({agent}{budget})").green().to_string()
         } else {
             "OFF".dimmed().to_string()
         };
 
         println!(
             " {} {} — {}",
-            format!("①②③④⑤⑥⑦⑧⑨⑩")
+            "①②③④⑤⑥⑦⑧⑨⑩"
+                .to_string()
                 .chars()
                 .nth(i)
                 .map(|c| c.to_string())
@@ -279,10 +271,23 @@ pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
                 let title = task
                     .title
                     .as_deref()
-                    .map(|t| format!("#{} {}", truncate_utf8(&task.task_id, 8), truncate_utf8(t, 20)))
+                    .map(|t| {
+                        format!(
+                            "#{} {}",
+                            truncate_utf8(&task.task_id, 8),
+                            truncate_utf8(t, 20)
+                        )
+                    })
                     .unwrap_or_else(|| format!("#{}", truncate_utf8(&task.task_id, 8)));
-                let elapsed = task.started_at.as_ref().map(|s| format_elapsed(s)).unwrap_or_default();
-                let cost = task.cost_usd.map(|c| format!("${:.2}", c)).unwrap_or_else(|| "-".into());
+                let elapsed = task
+                    .started_at
+                    .as_ref()
+                    .map(|s| format_elapsed(s))
+                    .unwrap_or_default();
+                let cost = task
+                    .cost_usd
+                    .map(|c| format!("${:.2}", c))
+                    .unwrap_or_else(|| "-".into());
                 table.add_row(vec![
                     Cell::new(agent),
                     Cell::new(&title),
@@ -297,10 +302,23 @@ pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
                 let title = task
                     .title
                     .as_deref()
-                    .map(|t| format!("#{} {}", truncate_utf8(&task.task_id, 8), truncate_utf8(t, 20)))
+                    .map(|t| {
+                        format!(
+                            "#{} {}",
+                            truncate_utf8(&task.task_id, 8),
+                            truncate_utf8(t, 20)
+                        )
+                    })
                     .unwrap_or_else(|| format!("#{}", truncate_utf8(&task.task_id, 8)));
-                let elapsed = task.started_at.as_ref().map(|s| format_elapsed(s)).unwrap_or_default();
-                let cost = task.cost_usd.map(|c| format!("${:.2}", c)).unwrap_or_else(|| "-".into());
+                let elapsed = task
+                    .started_at
+                    .as_ref()
+                    .map(|s| format_elapsed(s))
+                    .unwrap_or_default();
+                let cost = task
+                    .cost_usd
+                    .map(|c| format!("${:.2}", c))
+                    .unwrap_or_else(|| "-".into());
                 let (status_text, status_color) = if task.status == "completed" {
                     ("✓ 完成", Color::Green)
                 } else {
@@ -335,7 +353,13 @@ pub fn print_dashboard_compact(data: &crate::cli::dashboard::DashboardData) {
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_header(vec![
-            "Workspace", "Project", "Daemon", "Auto", "Running", "Done", "Cost",
+            "Workspace",
+            "Project",
+            "Daemon",
+            "Auto",
+            "Running",
+            "Done",
+            "Cost",
         ]);
 
     let daemon_str = if data.daemon_running { "✓" } else { "✗" };

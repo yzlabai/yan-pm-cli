@@ -104,10 +104,8 @@ pub async fn run_foreground(url: Option<&str>, token: Option<&str>) -> Result<()
 
     // Initialize event store
     let events_db_path = config::config_dir().join("events.db");
-    let event_store = Arc::new(
-        EventStore::open(&events_db_path)
-            .context("Failed to open event store")?
-    );
+    let event_store =
+        Arc::new(EventStore::open(&events_db_path).context("Failed to open event store")?);
 
     // Run startup compact (delete synced events older than 7 days)
     if let Err(e) = event_store.compact(7) {

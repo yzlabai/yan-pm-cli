@@ -12,6 +12,7 @@ pub struct AgentCapabilities {
 }
 
 /// Polymorphic interface for agent backends
+#[allow(dead_code)]
 pub trait AgentBackend: Send + Sync {
     /// Identifier, e.g. "claude"
     fn name(&self) -> &str;
@@ -44,9 +45,7 @@ pub trait AgentBackend: Send + Sync {
     ///
     /// Default implementation produces a Chinese task template.
     fn build_prompt(&self, title: &str, description: &str) -> String {
-        format!(
-            "## 任务：{title}\n\n{description}\n\n请完成上述任务，确保代码质量和测试覆盖。"
-        )
+        format!("## 任务：{title}\n\n{description}\n\n请完成上述任务，确保代码质量和测试覆盖。")
     }
 
     /// Optional human-readable description
@@ -60,6 +59,7 @@ pub trait AgentBackend: Send + Sync {
     }
 }
 
+#[allow(dead_code)]
 impl dyn AgentBackend {
     /// Convert to `AgentDefinition` for compatibility with the registry layer.
     pub fn to_definition(&self) -> super::registry::AgentDefinition {

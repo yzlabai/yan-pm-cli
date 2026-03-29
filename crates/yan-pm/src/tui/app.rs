@@ -18,6 +18,7 @@ pub enum ViewMode {
 /// State for the log viewer screen.
 pub struct LogViewState {
     pub task_id: String,
+    #[allow(dead_code)]
     pub workspace_id: String,
     pub title: String,
     pub events: Vec<event_store::Event>,
@@ -330,8 +331,7 @@ impl App {
                     self.status_message =
                         Some((format!("Exported to {}", filename), Instant::now()));
                 } else {
-                    self.status_message =
-                        Some(("Export failed".to_string(), Instant::now()));
+                    self.status_message = Some(("Export failed".to_string(), Instant::now()));
                 }
             }
             _ => {}
