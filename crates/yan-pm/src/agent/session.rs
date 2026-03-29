@@ -8,7 +8,8 @@ use colored::Colorize;
 use futures::lock::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use super::registry::{is_command_available, AgentDefinition};
+use super::backend::AgentBackend;
+use super::registry::is_command_available;
 use super::state::{AgentErrorCode, ConnectionState};
 use crate::daemon::event_store::EventStore;
 
@@ -171,7 +172,7 @@ impl acp::Client for YanPmAcpClient {
 /// Spawns the agent process, connects via ACP over stdio, sends the prompt,
 /// and collects the result.
 pub async fn execute_agent(
-    agent: &AgentDefinition,
+    agent: &dyn AgentBackend,
     options: AgentOptions,
     ctx: Option<&ExecutionContext>,
 ) -> Result<AgentResult> {
@@ -198,7 +199,7 @@ pub async fn execute_agent(
         }
     };
 
-    if !is_command_available(&agent.command).await {
+    if !is_command_available(agent.command()).await {
         record_state(
             conn_state,
             ConnectionState::Stopped,
@@ -209,7 +210,8 @@ pub async fn execute_agent(
             success: false,
             summary: format!(
                 "{} CLI 未安装。请确保 {} 已安装且在 PATH 中。",
-                agent.name, agent.command
+                agent.name(),
+                agent.command()
             ),
             cost_usd: None,
             session_id: None,
@@ -250,7 +252,7 @@ pub async fn execute_agent(
     };
 
     // Build args
-    let mut args = agent.acp_args.clone();
+    let mut args = agent.acp_args();
 
     // Some agents accept extra CLI flags even in ACP mode
     if let Some(model) = &options.model {
@@ -263,10 +265,10 @@ pub async fn execute_agent(
     record_state(ConnectionState::Idle, conn_state, None, ctx);
 
     // Spawn agent process
-    let mut child = match tokio::process::Command::new(&agent.command)
+    let mut child = match tokio::process::Command::new(agent.command())
         .args(&args)
         .current_dir(&options.cwd)
-        .envs(&agent.env)
+        .envs(agent.env_vars())
         .env("CI", "true")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -265,6 +265,7 @@ impl LocalDirectory {
             assignee: task.assignee_id.clone(),
             issue: None,
             due: task.due_date.clone(),
+            requires: vec![],
             created: task.created_at.clone(),
             updated: task.updated_at.clone(),
         }
@@ -471,6 +472,7 @@ mod tests {
             assignee: None,
             issue: None,
             due: None,
+            requires: vec![],
             created: "2026-01-01T00:00:00Z".into(),
             updated: "2026-01-01T00:00:00Z".into(),
         };
@@ -501,6 +503,7 @@ mod tests {
             assignee: None,
             issue: None,
             due: None,
+            requires: vec![],
             created: "2026-01-01T00:00:00Z".into(),
             updated: "2026-01-01T00:00:00Z".into(),
         };
@@ -536,6 +539,7 @@ mod tests {
             assignee: None,
             issue: None,
             due: None,
+            requires: vec![],
             created: "2026-01-01T00:00:00Z".into(),
             updated: "2026-01-01T00:00:00Z".into(),
         };
