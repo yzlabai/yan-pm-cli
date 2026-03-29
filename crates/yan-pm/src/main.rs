@@ -10,6 +10,7 @@ mod mcp;
 mod output;
 mod runner;
 mod sync;
+mod tui;
 
 use clap::{Parser, Subcommand};
 
@@ -290,6 +291,9 @@ enum Commands {
         /// 紧凑模式（单行 per workspace）
         #[arg(long)]
         compact: bool,
+        /// TUI 实时模式
+        #[arg(long)]
+        live: bool,
     },
     /// 自动执行任务配置
     #[command(name = "auto-run")]
@@ -682,8 +686,8 @@ async fn main() {
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,
         Commands::Agents { running } => cli::agents::run(running, cli.json).await,
-        Commands::Dashboard { compact } => {
-            cli::dashboard::run(cli.json, compact).await
+        Commands::Dashboard { compact, live } => {
+            cli::dashboard::run(cli.json, compact, live).await
         }
         Commands::AutoRun { action } => match action {
             AutoRunAction::On {

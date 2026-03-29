@@ -78,7 +78,7 @@ fn event_to_execution(event: &Event, status: &str) -> TaskExecution {
     }
 }
 
-fn collect_workspace_data(
+pub fn collect_workspace_data(
     entry: &WorkspaceEntry,
     event_store: Option<&EventStore>,
 ) -> WorkspaceDashboard {
@@ -148,7 +148,7 @@ fn collect_workspace_data(
     }
 }
 
-fn open_event_store() -> Option<EventStore> {
+pub fn open_event_store() -> Option<EventStore> {
     let db_path = crate::config::config_dir().join("events.db");
     if db_path.exists() {
         EventStore::open(&db_path).ok()
@@ -157,7 +157,13 @@ fn open_event_store() -> Option<EventStore> {
     }
 }
 
-pub async fn run(json: bool, compact: bool) -> Result<()> {
+pub async fn run(json: bool, compact: bool, live: bool) -> Result<()> {
+    // TUI live mode
+    if live {
+        let event_store = open_event_store().map(std::sync::Arc::new);
+        return crate::tui::run_tui(event_store);
+    }
+
     let workspace_entries = list_all_workspace_links();
     let daemon_pid = pid::check_running();
     let daemon_running = daemon_pid.is_some();
