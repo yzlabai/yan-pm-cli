@@ -132,6 +132,19 @@ impl acp::Client for YanPmAcpClient {
                             output.push_str(safe);
                         }
                     }
+                    // Record agent output to EventStore for TUI log view
+                    if let Some(ectx) = &self.event_ctx {
+                        let payload = serde_json::json!({
+                            "project_id": &ectx.project_id,
+                            "text": &text_content.text,
+                        });
+                        let _ = ectx.event_store.insert(
+                            &ectx.task_id,
+                            &ectx.workspace_id,
+                            "agent_output",
+                            &payload.to_string(),
+                        );
+                    }
                     if self.verbose {
                         eprint!("{}", text_content.text);
                     }

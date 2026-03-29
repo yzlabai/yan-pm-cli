@@ -16,6 +16,7 @@ pub enum EventType {
     ToolCall,
     ToolResult,
     StateChange,
+    AgentOutput,
     Error,
 }
 
@@ -28,6 +29,7 @@ impl EventType {
             EventType::ToolCall => "tool_call",
             EventType::ToolResult => "tool_result",
             EventType::StateChange => "state_change",
+            EventType::AgentOutput => "agent_output",
             EventType::Error => "error",
         }
     }
@@ -40,6 +42,7 @@ impl EventType {
             "tool_call" => Some(EventType::ToolCall),
             "tool_result" => Some(EventType::ToolResult),
             "state_change" => Some(EventType::StateChange),
+            "agent_output" => Some(EventType::AgentOutput),
             "error" => Some(EventType::Error),
             _ => None,
         }
