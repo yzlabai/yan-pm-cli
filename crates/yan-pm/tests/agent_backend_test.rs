@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use yan_pm_cli::agent::backend::AgentBackend;
 use yan_pm_cli::agent::backends::{builtin_backends, ClaudeBackend, CodexBackend, GeminiBackend};
+use yan_pm_cli::agent::registry::AgentDefinition;
 
 #[test]
 fn test_claude_backend() {
@@ -60,4 +62,46 @@ fn test_to_definition() {
     assert_eq!(def.name, "claude");
     assert_eq!(def.command, "claude");
     assert_eq!(def.acp_args, vec!["--acp"]);
+}
+
+#[test]
+fn test_agent_definition_impl_backend() {
+    let def = AgentDefinition {
+        name: "custom-agent".into(),
+        command: "my-agent".into(),
+        acp_args: vec!["--acp".into(), "--fast".into()],
+        env: HashMap::from([("KEY".into(), "VAL".into())]),
+        description: Some("A custom agent".into()),
+    };
+
+    // AgentDefinition now implements AgentBackend
+    let backend: &dyn AgentBackend = &def;
+    assert_eq!(backend.name(), "custom-agent");
+    assert_eq!(backend.command(), "my-agent");
+    assert_eq!(backend.acp_args(), vec!["--acp", "--fast"]);
+    assert_eq!(backend.env_vars().get("KEY").unwrap(), "VAL");
+    assert_eq!(backend.description(), Some("A custom agent"));
+
+    // Capabilities should be conservative defaults (all false)
+    let caps = backend.capabilities();
+    assert!(!caps.supports_images);
+    assert!(!caps.supports_mcp);
+    assert!(!caps.supports_worktree);
+    assert_eq!(caps.max_context_tokens, 0);
+
+    // Priority should be 999 (lower than built-in backends)
+    assert_eq!(backend.priority(), 999);
+    assert!(backend.priority() > ClaudeBackend.priority());
+}
+
+#[test]
+fn test_find_backend_prefers_builtin() {
+    // find_backend should return built-in backends for known names
+    let claude = yan_pm_cli::agent::registry::find_backend("claude");
+    assert!(claude.is_some());
+    assert_eq!(claude.unwrap().name(), "claude");
+
+    // Unknown names return None
+    let unknown = yan_pm_cli::agent::registry::find_backend("nonexistent");
+    assert!(unknown.is_none());
 }

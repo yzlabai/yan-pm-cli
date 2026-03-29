@@ -27,6 +27,9 @@ pub struct TaskFrontmatter {
     pub issue: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<String>,
+    /// Agent capability requirements (e.g. ["images", "mcp", "worktree"])
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<String>,
     pub created: String,
     pub updated: String,
 }
@@ -174,6 +177,7 @@ mod tests {
             assignee: None,
             issue: None,
             due: None,
+            requires: vec![],
             created: "2026-03-25T10:00:00Z".to_string(),
             updated: "2026-03-25T10:00:00Z".to_string(),
         }

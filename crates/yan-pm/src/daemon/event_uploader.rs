@@ -13,11 +13,31 @@ const UPLOAD_BATCH_SIZE: i64 = 50;
 pub struct EventUploader {
     store: Arc<EventStore>,
     client: Arc<ApiClient>,
+    /// Unique session ID for this daemon instance, used in composite local_id
+    session_id: String,
 }
 
 impl EventUploader {
     pub fn new(store: Arc<EventStore>, client: Arc<ApiClient>) -> Self {
-        Self { store, client }
+        // Generate a short unique session ID for composite local_id
+        let session_id = format!(
+            "{:x}-{:x}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        );
+        Self {
+            store,
+            client,
+            session_id,
+        }
+    }
+
+    /// Build composite local_id: "{session_id}:{sqlite_rowid}"
+    fn local_id(&self, rowid: i64) -> String {
+        format!("{}:{}", self.session_id, rowid)
     }
 
     /// Fetch one batch of unsynced events, upload them grouped by task_id, and
@@ -53,11 +73,16 @@ impl EventUploader {
                 continue;
             };
 
-            // Build payload array for POST.
+            // Build complete event records for POST (not just payload).
             let events_json: Vec<Value> = task_events
                 .iter()
                 .map(|e| {
-                    serde_json::from_str::<Value>(&e.payload).unwrap_or(Value::Null)
+                    serde_json::json!({
+                        "event_type": &e.event_type,
+                        "payload": &e.payload,
+                        "created_at": &e.created_at,
+                        "local_id": self.local_id(e.id),
+                    })
                 })
                 .collect();
 

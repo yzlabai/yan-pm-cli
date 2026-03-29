@@ -8,12 +8,32 @@ use anyhow::Result;
 use tokio::task::JoinHandle;
 use tokio::time;
 
-use crate::agent::{self, find_agent, AgentOptions, AgentResult};
+use crate::agent::{self, find_backend, AgentBackend, AgentOptions, AgentResult};
+use crate::agent::registry::find_capable_backend;
 use crate::api::client::{ApiClient, UpdateTaskData};
 use crate::api::types::{ExecutionReport, TaskStatus};
 use crate::local::directory::{AutoRunConfig, LocalDirectory};
+use crate::local::taskfile::LocalTaskFile;
 
 use super::event_store::EventStore;
+
+/// Capability requirements derived from a task's frontmatter.
+struct TaskNeeds {
+    images: bool,
+    mcp: bool,
+    worktree: bool,
+}
+
+/// Derive capability requirements from a local task file.
+/// Priority: frontmatter `requires` field > defaults (all false).
+fn task_capabilities(task: &LocalTaskFile) -> TaskNeeds {
+    let requires = &task.frontmatter.requires;
+    TaskNeeds {
+        images: requires.iter().any(|r| r == "images"),
+        mcp: requires.iter().any(|r| r == "mcp"),
+        worktree: requires.iter().any(|r| r == "worktree"),
+    }
+}
 
 /// A single running task execution.
 struct RunningTask {
@@ -319,7 +339,30 @@ impl AutoRunner {
         let task_id = next_task.frontmatter.id.as_ref().unwrap().clone();
         let project_id = slot.project_id.clone();
         let workspace_path = slot.workspace_path.clone();
-        let agent_name = slot.config.agent.clone();
+
+        // Try capability-based backend selection, fallback to configured agent
+        let needs = task_capabilities(next_task);
+        let has_requirements = needs.images || needs.mcp || needs.worktree;
+        let agent_name = if has_requirements {
+            if let Some(capable) =
+                find_capable_backend(needs.images, needs.mcp, needs.worktree).await
+            {
+                tracing::info!(
+                    "AutoRunner: capability match → {} for task {}",
+                    capable.name(),
+                    task_id
+                );
+                capable.name().to_string()
+            } else {
+                tracing::warn!(
+                    "AutoRunner: no capable backend found for task {}, falling back to config agent",
+                    task_id
+                );
+                slot.config.agent.clone()
+            }
+        } else {
+            slot.config.agent.clone()
+        };
 
         // Skip if already running this task
         if slot.running.iter().any(|r| r.task_id == task_id) {
@@ -395,15 +438,17 @@ impl AutoRunner {
         description: &str,
         retry_count: u32,
     ) -> Result<()> {
-        // Resolve agent
-        let agent = match find_agent(agent_name) {
-            Some(a) => a,
-            None => {
+        // Resolve agent backend (prefer built-in, fallback to AgentDefinition)
+        let backend: Box<dyn AgentBackend> =
+            if let Some(b) = find_backend(agent_name) {
+                b
+            } else if let Some(def) = agent::find_agent(agent_name) {
+                Box::new(def)
+            } else {
                 tracing::error!("AutoRunner: agent '{agent_name}' not found");
                 let _ = self.client.unlock_task(project_id, task_id).await;
                 return Ok(());
-            }
-        };
+            };
 
         // Start heartbeat
         let heartbeat_running = Arc::new(AtomicBool::new(true));
@@ -438,7 +483,6 @@ impl AutoRunner {
         // Spawn agent execution in a dedicated thread with its own runtime
         // (ACP uses LocalSet which is !Send, can't use tokio::spawn)
         let cwd = workspace_path.to_string();
-        let agent_clone = agent.clone();
         let remaining_budget = self
             .slots
             .get(path)
@@ -450,7 +494,7 @@ impl AutoRunner {
                 .expect("Failed to build tokio runtime for agent");
             rt.block_on(async move {
                 match agent::execute_agent(
-                    &agent_clone,
+                    backend.as_ref(),
                     AgentOptions {
                         cwd,
                         prompt,

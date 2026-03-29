@@ -350,6 +350,7 @@ mod tests {
             assignee: assignee.map(String::from),
             issue: None,
             due: None,
+            requires: vec![],
             created: "2026-03-25T00:00:00Z".into(),
             updated: "2026-03-25T10:00:00Z".into(),
         }

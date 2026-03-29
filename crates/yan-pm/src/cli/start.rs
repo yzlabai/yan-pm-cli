@@ -32,23 +32,24 @@ pub async fn run(
 ) -> Result<()> {
     let client = make_client(url, token)?;
 
-    // Resolve agent
-    let agent_def = agent::find_agent(agent_name);
-    let agent_def = match agent_def {
-        Some(a) => a,
-        None => {
+    // Resolve agent backend (prefer built-in backends, fallback to AgentDefinition)
+    let backend: Box<dyn agent::AgentBackend> =
+        if let Some(b) = agent::registry::find_backend(agent_name) {
+            b
+        } else if let Some(def) = agent::find_agent(agent_name) {
+            Box::new(def)
+        } else {
             let available = agent::load_agents();
             let names: Vec<&str> = available.iter().map(|a| a.name.as_str()).collect();
             bail!("未知 Agent: {agent_name}。可用: {}", names.join(", "));
-        }
-    };
+        };
 
     // Check availability
-    if !agent::is_command_available(&agent_def.command).await {
+    if !agent::is_command_available(backend.command()).await {
         bail!(
             "{} CLI 未找到 (命令: {})。请确保已安装且在 PATH 中。",
-            agent_def.name,
-            agent_def.command
+            backend.name(),
+            backend.command()
         );
     }
 
@@ -78,7 +79,7 @@ pub async fn run(
         allowed_tools: tools.map(|t| t.split(',').map(|s| s.trim().to_string()).collect()),
         mcp_configs: mcp_config.map(|p| vec![p.to_string()]),
         verbose,
-        agent: agent_def,
+        agent: backend,
     };
 
     let start_opts = runner::StartOptions {

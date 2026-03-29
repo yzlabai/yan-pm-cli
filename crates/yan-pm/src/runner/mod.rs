@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use colored::Colorize;
 use tokio::time;
 
-use crate::agent::{self, AgentDefinition, AgentOptions, AgentResult};
+use crate::agent::{self, AgentBackend, AgentOptions, AgentResult};
 use crate::api::client::*;
 use crate::api::types::*;
 use crate::output::truncate_utf8;
@@ -21,7 +21,7 @@ pub struct TaskRunnerOptions {
     pub allowed_tools: Option<Vec<String>>,
     pub mcp_configs: Option<Vec<String>>,
     pub verbose: bool,
-    pub agent: AgentDefinition,
+    pub agent: Box<dyn AgentBackend>,
 }
 
 /// Options for the start command
@@ -169,7 +169,7 @@ async fn run_task(
     let prompt = build_task_prompt(task, project_name);
     let _verbose = opts.verbose;
     let agent_result = agent::execute_agent(
-        &opts.agent,
+        opts.agent.as_ref(),
         AgentOptions {
             cwd: opts.cwd.clone(),
             prompt,

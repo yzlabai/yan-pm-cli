@@ -128,8 +128,40 @@ fn agents_toml_path() -> PathBuf {
     config::config_dir().join("agents.toml")
 }
 
-use super::backend::AgentBackend;
+use super::backend::{AgentBackend, AgentCapabilities};
 use super::backends::builtin_backends;
+
+/// Backward-compatible AgentBackend implementation for user-defined agents (agents.toml).
+/// Capabilities default to all-false (conservative) since AgentDefinition has no capability data.
+impl AgentBackend for AgentDefinition {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn command(&self) -> &str {
+        &self.command
+    }
+
+    fn acp_args(&self) -> Vec<String> {
+        self.acp_args.clone()
+    }
+
+    fn env_vars(&self) -> HashMap<String, String> {
+        self.env.clone()
+    }
+
+    fn capabilities(&self) -> AgentCapabilities {
+        AgentCapabilities::default()
+    }
+
+    fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    fn priority(&self) -> u32 {
+        999
+    }
+}
 
 /// Find the best available backend by name.
 pub fn find_backend(name: &str) -> Option<Box<dyn AgentBackend>> {

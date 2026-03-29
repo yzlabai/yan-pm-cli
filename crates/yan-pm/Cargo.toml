@@ -32,6 +32,8 @@ serde_yaml = "0.9"
 # Terminal
 colored = "3"
 comfy-table = "7"
+ratatui = "0.29"
+crossterm = "0.28"
 
 # Error handling
 anyhow = "1"
