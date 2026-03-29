@@ -308,7 +308,7 @@ pub struct UpdateProjectData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceCodeResponse {
     pub device_code: String,
     pub user_code: String,
@@ -319,7 +319,7 @@ pub struct DeviceCodeResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct DeviceTokenResponse {
     pub access_token: Option<String>,
     pub error: Option<String>,
