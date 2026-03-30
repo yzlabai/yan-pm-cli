@@ -481,26 +481,33 @@ async fn handle_tool_call(client: &ApiClient, name: &str, params: &Value) -> Val
     }
 }
 
-/// Start the MCP stdio server (blocking, reads from stdin)
-pub async fn start_mcp_server() -> Result<()> {
+/// Try to create an API client from current config. Returns None if not configured.
+fn try_create_client() -> Option<ApiClient> {
     let resolved = config::resolve_config(None, None);
     if resolved.base_url.is_empty() || resolved.token.is_empty() {
-        anyhow::bail!(
-            "MCP 需要配置。请设置环境变量:\n  export YAN_PM_BASE_URL=https://your-domain.com\n  export YAN_PM_TOKEN=your_token\n或运行 yan-pm login 配置。"
-        );
+        return None;
     }
+    ApiClient::new(&resolved.base_url, &resolved.token).ok()
+}
 
-    let client =
-        ApiClient::new(&resolved.base_url, &resolved.token).map_err(|e| anyhow::anyhow!("{e}"))?;
+/// Start the MCP stdio server (blocking, reads from stdin)
+pub async fn start_mcp_server() -> Result<()> {
+    // Lazily initialized: allow startup without token so login can happen mid-session
+    let mut client = try_create_client();
 
-    // Validate token by making a test API call
-    client
-        .list_projects()
-        .await
-        .map_err(|e| anyhow::anyhow!("Token 验证失败: {e}\n请检查 YAN_PM_TOKEN 是否有效。"))?;
-
-    // Start workspace heartbeat (best-effort, like TS version)
-    let workspace_id = start_workspace_heartbeat(&client).await;
+    // Best-effort startup validation + heartbeat
+    let mut heartbeat_project_id: Option<String> = None;
+    let mut heartbeat_workspace_id: Option<String> = None;
+    if let Some(ref c) = client {
+        if c.list_projects().await.is_ok() {
+            let workspace_id = start_workspace_heartbeat(c).await;
+            heartbeat_project_id = workspace_id.as_ref().map(|(p, _)| p.clone());
+            heartbeat_workspace_id = workspace_id.as_ref().map(|(_, w)| w.clone());
+        } else {
+            // Token invalid, clear client so it will be re-read on next request
+            client = None;
+        }
+    }
 
     let stdin = BufReader::new(tokio::io::stdin());
     let mut lines = stdin.lines();
@@ -509,9 +516,6 @@ pub async fn start_mcp_server() -> Result<()> {
     // Heartbeat every 2 minutes
     let mut heartbeat_timer = interval(Duration::from_secs(120));
     heartbeat_timer.tick().await; // consume the immediate first tick
-
-    let heartbeat_project_id = workspace_id.as_ref().map(|(p, _)| p.clone());
-    let heartbeat_workspace_id = workspace_id.as_ref().map(|(_, w)| w.clone());
 
     loop {
         tokio::select! {
@@ -579,18 +583,27 @@ pub async fn start_mcp_server() -> Result<()> {
                     }
 
                     "tools/call" => {
-                        let params = req.params.unwrap_or(Value::Null);
-                        let tool_name = params
-                            .get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let tool_args = params
-                            .get("arguments")
-                            .cloned()
-                            .unwrap_or(serde_json::json!({}));
+                        // Lazily refresh client from config (supports login mid-session)
+                        if client.is_none() {
+                            client = try_create_client();
+                        }
 
-                        let result = handle_tool_call(&client, tool_name, &tool_args).await;
-                        ok_response(id, result)
+                        if let Some(ref c) = client {
+                            let params = req.params.unwrap_or(Value::Null);
+                            let tool_name = params
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            let tool_args = params
+                                .get("arguments")
+                                .cloned()
+                                .unwrap_or(serde_json::json!({}));
+
+                            let result = handle_tool_call(c, tool_name, &tool_args).await;
+                            ok_response(id, result)
+                        } else {
+                            err_response(id, -32000, "未登录。请先在终端运行 `yan-pm-cli login`，然后重试。")
+                        }
                     }
 
                     _ => err_response(id, -32601, &format!("Method not found: {}", req.method)),
@@ -602,9 +615,20 @@ pub async fn start_mcp_server() -> Result<()> {
                 out.flush()?;
             }
             _ = heartbeat_timer.tick() => {
+                // Lazily start heartbeat if client became available after login
+                if heartbeat_project_id.is_none() {
+                    if client.is_none() {
+                        client = try_create_client();
+                    }
+                    if let Some(ref c) = client {
+                        let ws = start_workspace_heartbeat(c).await;
+                        heartbeat_project_id = ws.as_ref().map(|(p, _)| p.clone());
+                        heartbeat_workspace_id = ws.as_ref().map(|(_, w)| w.clone());
+                    }
+                }
                 // Send workspace heartbeat (best-effort, errors are silently ignored)
-                if let (Some(pid), Some(wid)) = (&heartbeat_project_id, &heartbeat_workspace_id) {
-                    let _ = client.workspace_heartbeat(pid, wid, None).await;
+                if let (Some(ref c), Some(pid), Some(wid)) = (&client, &heartbeat_project_id, &heartbeat_workspace_id) {
+                    let _ = c.workspace_heartbeat(pid, wid, None).await;
                 }
             }
         }
