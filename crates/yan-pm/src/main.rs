@@ -57,13 +57,16 @@ enum Commands {
         #[command(subcommand)]
         action: IssueAction,
     },
-    /// 列出本地任务文件
+    /// 列出本地任务文件（如有 Spec 且无 Task 则自动生成）
     Tasks {
         /// Issue 编号（筛选该 Issue 的 tasks）
         issue_number: Option<i32>,
         /// 强制从本地文件读取
         #[arg(long)]
         local: bool,
+        /// 强制从 Spec 重新生成任务（覆盖已有任务）
+        #[arg(long)]
+        regenerate: bool,
     },
     /// 从云端拉取最新 Issue
     Pull,
@@ -117,6 +120,9 @@ enum Commands {
         /// 权限模式 (auto/plan/deny)
         #[arg(long, default_value = "auto")]
         permission_mode: String,
+        /// 自动依次执行所有 todo 任务
+        #[arg(long)]
+        auto: bool,
         /// 显示详细输出
         #[arg(long)]
         verbose: bool,
@@ -368,7 +374,8 @@ async fn main() {
         Commands::Tasks {
             issue_number,
             local: _,
-        } => cli::task::list_local(cli.json, issue_number).await,
+            regenerate,
+        } => cli::task::list_local(cli.json, issue_number, regenerate).await,
         Commands::Pull => {
             cli::pull::handle_pull(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
@@ -410,8 +417,19 @@ async fn main() {
             task,
             agent,
             permission_mode,
+            auto,
             verbose,
-        } => cli::start::run(issue, task.as_deref(), &agent, &permission_mode, verbose).await,
+        } => {
+            cli::start::run(
+                issue,
+                task.as_deref(),
+                &agent,
+                &permission_mode,
+                auto,
+                verbose,
+            )
+            .await
+        }
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,
         Commands::Agents { running } => cli::agents::run(running, cli.json).await,

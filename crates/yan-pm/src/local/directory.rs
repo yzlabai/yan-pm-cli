@@ -464,6 +464,88 @@ impl LocalDirectory {
         Ok(path)
     }
 
+    /// Generate task files from parsed spec tasks.
+    ///
+    /// Creates task files in `.yan-pm/tasks/` with filenames like `{issue:03d}-{seq:02d}-{slug}.md`.
+    /// Returns the list of file paths created.
+    pub fn generate_tasks_from_spec(
+        &self,
+        issue_number: i32,
+        parsed_tasks: &[super::task_parser::ParsedTask],
+    ) -> Result<Vec<PathBuf>> {
+        use super::taskfile::{render_task_file, slugify};
+
+        fs::create_dir_all(self.tasks_dir()).context("Failed to create tasks directory")?;
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut paths = Vec::new();
+
+        for (idx, parsed) in parsed_tasks.iter().enumerate() {
+            let seq = idx + 1;
+            let slug = slugify(&parsed.title);
+            let filename = format!("{:03}-{:02}-{}.md", issue_number, seq, slug);
+
+            // Build depends_on: convert dependency markers to our task ID format
+            let depends_on: Vec<String> = parsed
+                .depends_on
+                .iter()
+                .map(|d| {
+                    // If dep is like "001-01", keep as-is; otherwise prefix with issue number
+                    if d.contains('-') {
+                        d.clone()
+                    } else {
+                        format!("{:03}-{}", issue_number, d)
+                    }
+                })
+                .collect();
+
+            let fm = TaskFrontmatter {
+                id: None,
+                number: None,
+                title: parsed.title.clone(),
+                task_type: crate::api::types::TaskType::Task,
+                priority: crate::api::types::TaskPriority::Medium,
+                status: if parsed.checked {
+                    crate::api::types::TaskStatus::Done
+                } else {
+                    crate::api::types::TaskStatus::Todo
+                },
+                tags: Vec::new(),
+                depends_on,
+                assignee: None,
+                issue: Some(issue_number),
+                due: None,
+                requires: Vec::new(),
+                created: now.clone(),
+                updated: now.clone(),
+            };
+
+            let body = if parsed.description.is_empty() {
+                String::new()
+            } else {
+                parsed.description.clone()
+            };
+
+            let path = self.tasks_dir().join(&filename);
+            let content = render_task_file(&fm, &body)?;
+            let tmp_path = path.with_extension("md.tmp");
+            fs::write(&tmp_path, &content)?;
+            fs::rename(&tmp_path, &path)?;
+
+            paths.push(path);
+        }
+
+        Ok(paths)
+    }
+
+    /// Check if tasks already exist for a given issue number.
+    pub fn has_tasks_for_issue(&self, issue_number: i32) -> Result<bool> {
+        let tasks = self.scan_tasks()?;
+        Ok(tasks
+            .iter()
+            .any(|t| t.frontmatter.issue == Some(issue_number)))
+    }
+
     /// Find spec file by issue number.
     pub fn find_spec_by_issue(&self, issue_number: i32) -> Result<Option<LocalSpecFile>> {
         let specs = self.scan_specs()?;
