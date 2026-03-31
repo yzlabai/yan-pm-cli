@@ -132,7 +132,7 @@ pub fn print_local_tasks(tasks: &[LocalTaskFile]) {
     table
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_header(vec!["#", "标题", "类型", "优先级", "状态", "标签"]);
+        .set_header(vec!["#", "标题", "类型", "优先级", "状态", "Issue"]);
 
     for t in tasks {
         let fm = &t.frontmatter;
@@ -140,13 +140,17 @@ pub fn print_local_tasks(tasks: &[LocalTaskFile]) {
             .number
             .map(|n| format!("#{n}"))
             .unwrap_or_else(|| "new".to_string());
+        let issue_str = fm
+            .issue
+            .map(|n| format!("#{n}"))
+            .unwrap_or_else(|| "-".to_string());
         table.add_row(vec![
             Cell::new(&num).fg(Color::DarkGrey),
             Cell::new(&fm.title),
             Cell::new(format!("{}", fm.task_type)),
             Cell::new(format!("{}", fm.priority)).fg(priority_color(fm.priority)),
             Cell::new(format!("{}", fm.status)).fg(status_color(fm.status)),
-            Cell::new(fm.tags.join(", ")),
+            Cell::new(&issue_str),
         ]);
     }
     println!("{table}");

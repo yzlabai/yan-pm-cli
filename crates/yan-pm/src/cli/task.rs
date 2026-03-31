@@ -25,13 +25,7 @@ pub async fn list_local(json: bool, issue_number: Option<i32>) -> Result<()> {
 
     // Filter by issue number if provided
     if let Some(num) = issue_number {
-        let num_str = num.to_string();
-        tasks.retain(|t| {
-            t.frontmatter
-                .issue
-                .as_ref()
-                .is_some_and(|i| i == &num_str || i.ends_with(&format!("/{num}")))
-        });
+        tasks.retain(|t| t.frontmatter.issue == Some(num));
     }
 
     if json {
@@ -45,6 +39,7 @@ pub async fn list_local(json: bool, issue_number: Option<i32>) -> Result<()> {
                     "type": t.frontmatter.task_type,
                     "priority": t.frontmatter.priority,
                     "status": t.frontmatter.status,
+                    "issue": t.frontmatter.issue,
                     "tags": t.frontmatter.tags,
                     "file": t.file_path.display().to_string(),
                 })

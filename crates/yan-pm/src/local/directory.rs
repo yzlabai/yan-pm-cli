@@ -4,8 +4,14 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::api::types::Task;
+use crate::api::types::{Issue, Task};
 
+use super::issuefile::{
+    issue_filename, parse_issue_file, render_issue_file, IssueFrontmatter, LocalIssueFile,
+};
+use super::specfile::{
+    parse_spec_file, render_spec_file, spec_filename, LocalSpecFile, SpecFrontmatter,
+};
 use super::taskfile::{
     parse_task_file, render_task_file, task_filename, LocalTaskFile, TaskFrontmatter,
 };
@@ -13,6 +19,8 @@ use super::taskfile::{
 const YAN_PM_DIR: &str = ".yan-pm";
 const TASKS_DIR: &str = "tasks";
 const DONE_DIR: &str = "done";
+const ISSUES_DIR: &str = "issues";
+const SPECS_DIR: &str = "specs";
 const LOCAL_CONFIG: &str = "config.json";
 
 /// Auto-run configuration for a workspace.
@@ -103,6 +111,16 @@ impl LocalDirectory {
         self.yan_pm_dir().join(DONE_DIR)
     }
 
+    /// Path to .yan-pm/issues/
+    fn issues_dir(&self) -> PathBuf {
+        self.yan_pm_dir().join(ISSUES_DIR)
+    }
+
+    /// Path to .yan-pm/specs/
+    fn specs_dir(&self) -> PathBuf {
+        self.yan_pm_dir().join(SPECS_DIR)
+    }
+
     /// Path to .yan-pm/config.json
     fn config_path(&self) -> PathBuf {
         self.yan_pm_dir().join(LOCAL_CONFIG)
@@ -117,6 +135,8 @@ impl LocalDirectory {
     pub fn init(&self) -> Result<()> {
         fs::create_dir_all(self.tasks_dir()).context("Failed to create .yan-pm/tasks/")?;
         fs::create_dir_all(self.done_dir()).context("Failed to create .yan-pm/done/")?;
+        fs::create_dir_all(self.issues_dir()).context("Failed to create .yan-pm/issues/")?;
+        fs::create_dir_all(self.specs_dir()).context("Failed to create .yan-pm/specs/")?;
 
         // Add .yan-pm to .gitignore if it exists and doesn't already contain it
         let gitignore = self.root.join(".gitignore");
@@ -271,6 +291,187 @@ impl LocalDirectory {
         }
     }
 
+    // ---- Issue methods ----
+
+    /// Scan all issue files in .yan-pm/issues/.
+    pub fn scan_issues(&self) -> Result<Vec<LocalIssueFile>> {
+        let dir = self.issues_dir();
+        if !dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let mut issues = Vec::new();
+        for entry in fs::read_dir(&dir).context("Failed to read issues directory")? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            match fs::read_to_string(&path) {
+                Ok(content) => match parse_issue_file(&content) {
+                    Ok((fm, body)) => {
+                        issues.push(LocalIssueFile {
+                            frontmatter: fm,
+                            body,
+                            file_path: path,
+                        });
+                    }
+                    Err(e) => {
+                        eprintln!("⚠ 跳过无效 Issue 文件 {}: {}", path.display(), e);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("⚠ 无法读取 {}: {}", path.display(), e);
+                }
+            }
+        }
+
+        issues.sort_by_key(|i| i.frontmatter.number);
+        Ok(issues)
+    }
+
+    /// Write an issue file to .yan-pm/issues/.
+    pub fn write_issue(&self, frontmatter: &IssueFrontmatter, body: &str) -> Result<PathBuf> {
+        let filename = issue_filename(frontmatter.number, &frontmatter.title);
+        let path = self.issues_dir().join(&filename);
+        let content = render_issue_file(frontmatter, body)?;
+
+        let tmp_path = path.with_extension("md.tmp");
+        fs::write(&tmp_path, &content)?;
+        fs::rename(&tmp_path, &path)?;
+        Ok(path)
+    }
+
+    /// Convert a cloud Issue to IssueFrontmatter.
+    fn issue_to_frontmatter(issue: &Issue) -> IssueFrontmatter {
+        IssueFrontmatter {
+            id: issue.id.clone(),
+            number: issue.number,
+            title: issue.title.clone(),
+            issue_type: issue.issue_type,
+            priority: issue.priority,
+            status: issue.status,
+            labels: issue.labels.clone(),
+            acceptance_criteria: issue.acceptance_criteria.clone(),
+            assignee: issue.assignee_id.clone(),
+            created: issue.created_at.clone(),
+            updated: issue.updated_at.clone(),
+        }
+    }
+
+    /// Pull cloud issues to local files.
+    pub fn pull_issues(&self, cloud_issues: &[Issue]) -> Result<PullIssueResult> {
+        fs::create_dir_all(self.issues_dir()).context("Failed to create issues directory")?;
+
+        let existing = self.scan_issues()?;
+        let existing_by_id: std::collections::HashMap<String, LocalIssueFile> = existing
+            .into_iter()
+            .map(|i| (i.frontmatter.id.clone(), i))
+            .collect();
+
+        let mut created = 0;
+        let mut updated = 0;
+        let mut unchanged = 0;
+
+        for issue in cloud_issues {
+            let fm = Self::issue_to_frontmatter(issue);
+            let body = issue.description.as_deref().unwrap_or("");
+
+            match existing_by_id.get(&issue.id) {
+                Some(local) => {
+                    // Check if content changed (compare updated timestamps)
+                    if local.frontmatter.updated == fm.updated {
+                        unchanged += 1;
+                    } else {
+                        // Remove old file if filename changed
+                        let new_filename = issue_filename(fm.number, &fm.title);
+                        let old_filename = local
+                            .file_path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        if new_filename != old_filename {
+                            let _ = fs::remove_file(&local.file_path);
+                        }
+                        self.write_issue(&fm, body)?;
+                        updated += 1;
+                    }
+                }
+                None => {
+                    self.write_issue(&fm, body)?;
+                    created += 1;
+                }
+            }
+        }
+
+        Ok(PullIssueResult {
+            created,
+            updated,
+            unchanged,
+        })
+    }
+
+    // ---- Spec methods ----
+
+    /// Scan all spec files in .yan-pm/specs/.
+    pub fn scan_specs(&self) -> Result<Vec<LocalSpecFile>> {
+        let dir = self.specs_dir();
+        if !dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let mut specs = Vec::new();
+        for entry in fs::read_dir(&dir).context("Failed to read specs directory")? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            match fs::read_to_string(&path) {
+                Ok(content) => match parse_spec_file(&content) {
+                    Ok((fm, body)) => {
+                        specs.push(LocalSpecFile {
+                            frontmatter: fm,
+                            body,
+                            file_path: path,
+                        });
+                    }
+                    Err(e) => {
+                        eprintln!("⚠ 跳过无效 Spec 文件 {}: {}", path.display(), e);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("⚠ 无法读取 {}: {}", path.display(), e);
+                }
+            }
+        }
+
+        specs.sort_by_key(|s| s.frontmatter.issue);
+        Ok(specs)
+    }
+
+    /// Write a spec file to .yan-pm/specs/.
+    pub fn write_spec(&self, frontmatter: &SpecFrontmatter, body: &str) -> Result<PathBuf> {
+        fs::create_dir_all(self.specs_dir()).context("Failed to create specs directory")?;
+        let filename = spec_filename(frontmatter.issue, &frontmatter.title);
+        let path = self.specs_dir().join(&filename);
+        let content = render_spec_file(frontmatter, body)?;
+
+        let tmp_path = path.with_extension("md.tmp");
+        fs::write(&tmp_path, &content)?;
+        fs::rename(&tmp_path, &path)?;
+        Ok(path)
+    }
+
+    /// Find spec file by issue number.
+    pub fn find_spec_by_issue(&self, issue_number: i32) -> Result<Option<LocalSpecFile>> {
+        let specs = self.scan_specs()?;
+        Ok(specs
+            .into_iter()
+            .find(|s| s.frontmatter.issue == issue_number))
+    }
+
     /// Write all cloud tasks to local files (full pull).
     /// Archives Done/Cancelled tasks, creates/updates active ones.
     pub fn pull_tasks(&self, tasks: &[Task]) -> Result<PullResult> {
@@ -357,6 +558,14 @@ impl std::fmt::Display for PullResult {
             self.created, self.updated, self.archived
         )
     }
+}
+
+/// Result of an issue pull operation.
+#[derive(Debug)]
+pub struct PullIssueResult {
+    pub created: usize,
+    pub updated: usize,
+    pub unchanged: usize,
 }
 
 #[cfg(test)]

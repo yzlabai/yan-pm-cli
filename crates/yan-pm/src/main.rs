@@ -384,13 +384,9 @@ async fn main() {
             local: _,
         } => cli::task::list_local(cli.json, issue_number).await,
         Commands::Pull => {
-            println!("TODO: implementing pull");
-            Ok(())
+            cli::pull::handle_pull(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::Spec { issue_number: _ } => {
-            println!("TODO: implementing spec");
-            Ok(())
-        }
+        Commands::Spec { issue_number } => cli::spec::handle_spec(issue_number, cli.json).await,
         Commands::Verify { issue_number: _ } => {
             println!("TODO: implementing verify");
             Ok(())

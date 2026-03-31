@@ -24,7 +24,7 @@ pub struct TaskFrontmatter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub issue: Option<String>,
+    pub issue: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<String>,
     /// Agent capability requirements (e.g. ["images", "mcp", "worktree"])
