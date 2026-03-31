@@ -78,11 +78,6 @@ pub fn load_agents() -> Vec<AgentDefinition> {
     agents
 }
 
-/// Find agent by name
-pub fn find_agent(name: &str) -> Option<AgentDefinition> {
-    load_agents().into_iter().find(|a| a.name == name)
-}
-
 /// List available agents (those that exist in PATH)
 #[allow(dead_code)]
 pub async fn list_available_agents() -> Vec<AgentDefinition> {
@@ -173,33 +168,4 @@ pub async fn list_backends_by_priority() -> Vec<Box<dyn AgentBackend>> {
     let mut backends = builtin_backends();
     backends.sort_by_key(|b| b.priority());
     backends
-}
-
-/// Find the best available backend matching capability requirements.
-/// Checks backends in priority order and returns the first available one
-/// that satisfies all requested capabilities.
-pub async fn find_capable_backend(
-    needs_images: bool,
-    needs_mcp: bool,
-    needs_worktree: bool,
-) -> Option<Box<dyn AgentBackend>> {
-    let mut backends = builtin_backends();
-    backends.sort_by_key(|b| b.priority());
-
-    for backend in backends {
-        let caps = backend.capabilities();
-        if needs_images && !caps.supports_images {
-            continue;
-        }
-        if needs_mcp && !caps.supports_mcp {
-            continue;
-        }
-        if needs_worktree && !caps.supports_worktree {
-            continue;
-        }
-        if is_command_available(backend.command()).await {
-            return Some(backend);
-        }
-    }
-    None
 }

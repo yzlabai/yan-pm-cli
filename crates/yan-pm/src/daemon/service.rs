@@ -16,7 +16,7 @@ pub fn install() -> Result<()> {
     return install_systemd(&exe_path);
 
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    bail!("系统服务安装暂不支持当前平台。请使用 `yan-pm daemon start` 手动启动。");
+    bail!("系统服务安装暂不支持当前平台。请使用 `yan daemon start` 手动启动。");
 }
 
 /// Uninstall the daemon system service.
@@ -34,7 +34,7 @@ pub fn uninstall() -> Result<()> {
 // ---- macOS launchd ----
 
 #[cfg(target_os = "macos")]
-const PLIST_LABEL: &str = "chat.yan.yan-pm-cli";
+const PLIST_LABEL: &str = "chat.yan.yan-pm";
 
 #[cfg(target_os = "macos")]
 fn plist_path() -> PathBuf {
@@ -139,7 +139,7 @@ fn service_path() -> PathBuf {
         .join(".config")
         .join("systemd")
         .join("user")
-        .join("yan-pm-cli.service")
+        .join("yan-pm.service")
 }
 
 #[cfg(target_os = "linux")]

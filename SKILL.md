@@ -10,7 +10,7 @@ description: |
 
 # YanChat 项目管理助手
 
-> 此 Skill 由 `yan-pm-cli setup` 自动安装。更新: `yan-pm-cli setup --target claude`
+> 此 Skill 由 `yan setup` 自动安装。更新: `yan setup --target claude`
 
 通过 MCP 连接 YanChat 云端，管理项目任务。支持查询任务、领取任务、更新状态、添加评论、生成报告。
 

@@ -106,16 +106,13 @@ fn resolve_binary_path(override_path: Option<&str>) -> Result<String> {
     }
 
     // 3. which lookup
-    if let Ok(output) = std::process::Command::new("which")
-        .arg("yan-pm-cli")
-        .output()
-    {
+    if let Ok(output) = std::process::Command::new("which").arg("yan").output() {
         if output.status.success() {
             return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
         }
     }
 
-    anyhow::bail!("无法确定 yan-pm-cli 路径，请使用 --binary-path 指定")
+    anyhow::bail!("无法确定 yan 二进制路径，请使用 --binary-path 指定")
 }
 
 // ── Claude Code setup ──
@@ -468,7 +465,7 @@ pub async fn install(
         println!();
 
         if !yes {
-            println!("将为以上工具配置 yan-pm MCP Server。确认? [Y/n]");
+            println!("将为以上工具配置 yan MCP Server。确认? [Y/n]");
             let mut input = String::new();
             std::io::stdin().read_line(&mut input)?;
             let input = input.trim().to_lowercase();
@@ -513,7 +510,7 @@ pub async fn uninstall(target: Option<&str>) -> Result<()> {
             _ => anyhow::bail!("不支持的目标: {t}"),
         }
     } else {
-        println!("{}", "卸载 yan-pm 配置...".bold());
+        println!("{}", "卸载 yan 配置...".bold());
         println!();
         println!("{}", "Claude Code:".bold());
         remove_claude()?;
@@ -529,7 +526,7 @@ pub async fn uninstall(target: Option<&str>) -> Result<()> {
 }
 
 pub async fn status() -> Result<()> {
-    println!("{}", "yan-pm-cli setup 状态:".bold());
+    println!("{}", "yan setup 状态:".bold());
     println!();
 
     // Claude Code

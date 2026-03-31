@@ -42,17 +42,6 @@ pub enum TaskPriority {
     Low,
 }
 
-impl TaskPriority {
-    pub fn order(&self) -> u8 {
-        match self {
-            Self::Urgent => 0,
-            Self::High => 1,
-            Self::Medium => 2,
-            Self::Low => 3,
-        }
-    }
-}
-
 impl std::fmt::Display for TaskPriority {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -88,9 +77,9 @@ impl std::fmt::Display for TaskType {
 #[serde(rename_all = "snake_case")]
 pub enum IssueStatus {
     Open,
-    Analyzing,
-    TasksCreated,
-    NeedsManual,
+    Accepted,
+    Delivered,
+    Closed,
     Cancelled,
 }
 
@@ -98,9 +87,9 @@ impl std::fmt::Display for IssueStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Open => write!(f, "open"),
-            Self::Analyzing => write!(f, "analyzing"),
-            Self::TasksCreated => write!(f, "tasks_created"),
-            Self::NeedsManual => write!(f, "needs_manual"),
+            Self::Accepted => write!(f, "accepted"),
+            Self::Delivered => write!(f, "delivered"),
+            Self::Closed => write!(f, "closed"),
             Self::Cancelled => write!(f, "cancelled"),
         }
     }
@@ -161,6 +150,7 @@ pub struct ProjectDetail {
     pub members: Vec<ProjectMember>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
@@ -187,6 +177,7 @@ pub struct Task {
     pub creator_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskDetail {
@@ -197,6 +188,7 @@ pub struct TaskDetail {
     pub assignee_name: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Comment {
@@ -226,6 +218,18 @@ pub struct Issue {
     pub updated_at: String,
     pub creator_id: Option<String>,
     pub assignee_id: Option<String>,
+    #[serde(default)]
+    pub acceptance_criteria: Vec<String>,
+    #[serde(default)]
+    pub context: Option<String>,
+    #[serde(default)]
+    pub delivery_summary: Option<String>,
+    #[serde(default)]
+    pub accepted_at: Option<String>,
+    #[serde(default)]
+    pub delivered_at: Option<String>,
+    #[serde(default)]
+    pub accepted_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -244,52 +248,6 @@ pub struct Workspace {
     pub created_at: String,
     pub user_name: Option<String>,
     pub online: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExecutionStatus {
-    pub tasks: Vec<Task>,
-    pub stale_threshold_ms: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DecomposeResult {
-    pub created: i32,
-    pub tasks: Vec<Task>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReportResult {
-    pub report: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HeartbeatResult {
-    pub ok: bool,
-    pub last_heartbeat: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExecutionReport {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workspace_id: Option<String>,
-    pub started_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finished_at: Option<String>,
-    pub status: String, // "succeeded" | "failed" | "cancelled"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cost_usd: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]

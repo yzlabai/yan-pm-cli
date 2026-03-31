@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 
 use super::make_client;
-use crate::api::client::{RegisterWorkspaceData, TaskListParams};
+use crate::api::client::RegisterWorkspaceData;
 use crate::config;
 use crate::local::directory::{LocalDirectory, LocalWorkspaceConfig};
 use crate::output;
@@ -71,21 +71,6 @@ pub async fn link(
         )
         .green()
     );
-
-    // Full pull: fetch all tasks and write local files
-    println!("{}", "⟳ 正在拉取任务文件...".cyan());
-    let tasks = client
-        .list_tasks(&project.project.id, &TaskListParams::default())
-        .await?;
-    let pull_result = local_dir.pull_tasks(&tasks)?;
-    local_dir.save_config(&LocalWorkspaceConfig {
-        project_id: project.project.id.clone(),
-        project_name: project.project.name.clone(),
-        last_sync: Some(chrono::Utc::now().to_rfc3339()),
-        auto_run: Default::default(),
-    })?;
-
-    println!("{}", format!("✓ {pull_result}").green());
 
     Ok(())
 }
@@ -164,7 +149,7 @@ pub async fn info(url: Option<&str>, token: Option<&str>, json: bool) -> Result<
             } else {
                 println!(
                     "{}",
-                    "当前目录未关联到任何项目。使用 `yan-pm link <projectId>` 关联。".yellow()
+                    "当前目录未关联到任何项目。使用 `yan link <projectId>` 关联。".yellow()
                 );
             }
         }

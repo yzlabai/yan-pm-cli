@@ -24,7 +24,7 @@ pub struct TaskFrontmatter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub issue: Option<String>,
+    pub issue: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<String>,
     /// Agent capability requirements (e.g. ["images", "mcp", "worktree"])
@@ -151,15 +151,6 @@ pub fn slugify(title: &str) -> String {
     }
 }
 
-/// Generate the filename for a task: `{number:03d}-{slug}.md`
-pub fn task_filename(number: Option<i32>, title: &str) -> String {
-    let slug = slugify(title);
-    match number {
-        Some(n) => format!("{:03}-{}.md", n, slug),
-        None => format!("000-{}.md", slug),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,19 +262,6 @@ Bug description here.
         let long_title = "this is a very very very very very very very very long title that exceeds fifty characters";
         let slug = slugify(long_title);
         assert!(slug.len() <= 50);
-    }
-
-    #[test]
-    fn test_task_filename() {
-        assert_eq!(
-            task_filename(Some(1), "Fix login bug"),
-            "001-fix-login-bug.md"
-        );
-        assert_eq!(
-            task_filename(Some(12), "Add search API"),
-            "012-add-search-api.md"
-        );
-        assert_eq!(task_filename(None, "New task"), "000-new-task.md");
     }
 
     #[test]

@@ -15,12 +15,12 @@ pub fn enable(
 ) -> Result<()> {
     let ws = config::find_workspace_link(None);
     let ws =
-        ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 yan-pm link <project>"))?;
+        ws.ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 yan link <project>"))?;
 
     let local_dir = LocalDirectory::new(Path::new(&ws.path));
     let mut config = local_dir
         .load_config()
-        .ok_or_else(|| anyhow::anyhow!("本地配置不存在。请先运行 yan-pm link"))?;
+        .ok_or_else(|| anyhow::anyhow!("本地配置不存在。请先运行 yan link"))?;
 
     config.auto_run = AutoRunConfig {
         enabled: true,
@@ -38,7 +38,7 @@ pub fn enable(
     print_config(&config.auto_run);
     println!(
         "\n{}",
-        "提示: 启动 daemon 后 auto-run 将自动生效 (yan-pm daemon start)".dimmed()
+        "提示: 启动 daemon 后 auto-run 将自动生效 (yan daemon start)".dimmed()
     );
     Ok(())
 }
@@ -82,7 +82,7 @@ pub fn status() -> Result<()> {
         println!("\n{} Daemon 运行中", "●".green());
     } else {
         println!(
-            "\n{} Daemon 未运行 — auto-run 需要 daemon (yan-pm daemon start)",
+            "\n{} Daemon 未运行 — auto-run 需要 daemon (yan daemon start)",
             "●".red()
         );
     }

@@ -7,7 +7,7 @@ repository.workspace = true
 description = "yan-pm-cli — yan.chat 项目管理终端 CLI（任务管理 + MCP 桥接 + Daemon + AutoRunner）"
 
 [[bin]]
-name = "yan-pm-cli"
+name = "yan"
 path = "src/main.rs"
 
 [lib]

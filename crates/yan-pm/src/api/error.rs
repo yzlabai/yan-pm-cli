@@ -13,6 +13,7 @@ pub enum ApiError {
 }
 
 impl ApiError {
+    #[allow(dead_code)]
     pub fn is_conflict(&self) -> bool {
         matches!(self, Self::Http { status: 409, .. })
     }

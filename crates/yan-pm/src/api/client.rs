@@ -20,12 +20,12 @@ impl ApiClient {
     pub fn new(base_url: &str, token: &str) -> Result<Self, ApiError> {
         if base_url.is_empty() {
             return Err(ApiError::Network(
-                "未配置服务器地址。运行 yan-pm login 或设置 YAN_PM_BASE_URL 环境变量。".into(),
+                "未配置服务器地址。运行 yan login 或设置 YAN_PM_BASE_URL 环境变量。".into(),
             ));
         }
         if token.is_empty() {
             return Err(ApiError::Network(
-                "未配置认证 Token。运行 yan-pm login 或设置 YAN_PM_TOKEN 环境变量。".into(),
+                "未配置认证 Token。运行 yan login 或设置 YAN_PM_TOKEN 环境变量。".into(),
             ));
         }
         let client = Client::builder()
@@ -37,14 +37,6 @@ impl ApiClient {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: token.to_string(),
         })
-    }
-
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
-    pub fn token(&self) -> &str {
-        &self.token
     }
 
     async fn request<T: DeserializeOwned>(
@@ -149,218 +141,6 @@ impl ApiClient {
         self.patch(&format!("/projects/{project_id}"), &body).await
     }
 
-    // ---- Tasks ----
-
-    pub async fn list_tasks(
-        &self,
-        project_id: &str,
-        params: &TaskListParams,
-    ) -> Result<Vec<Task>, ApiError> {
-        validate_project_ref(project_id)?;
-        let mut query_parts = Vec::new();
-        if let Some(s) = &params.status {
-            query_parts.push(format!("status={s}"));
-        }
-        if let Some(t) = &params.task_type {
-            query_parts.push(format!("type={t}"));
-        }
-        if let Some(p) = &params.priority {
-            query_parts.push(format!("priority={p}"));
-        }
-        if let Some(a) = &params.assignee_id {
-            query_parts.push(format!("assigneeId={}", urlencoded(a)));
-        }
-        if let Some(s) = &params.search {
-            query_parts.push(format!("search={}", urlencoded(s)));
-        }
-        let qs = if query_parts.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", query_parts.join("&"))
-        };
-        self.get(&format!("/projects/{project_id}/tasks{qs}")).await
-    }
-
-    pub async fn get_task(&self, project_id: &str, task_id: &str) -> Result<TaskDetail, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        self.get(&format!("/projects/{project_id}/tasks/{task_id}"))
-            .await
-    }
-
-    /// Resolve a task ID or short prefix to a full UUID.
-    /// Note: prefix matching fetches all project tasks (server has no pagination currently).
-    pub async fn resolve_task_id(
-        &self,
-        project_id: &str,
-        id_or_prefix: &str,
-    ) -> Result<String, ApiError> {
-        // Full UUID or long ID with dashes → use as-is
-        if is_full_id(id_or_prefix) {
-            return Ok(id_or_prefix.to_string());
-        }
-        // Otherwise, treat as prefix: list tasks and match
-        let tasks: Vec<Task> = self
-            .list_tasks(project_id, &TaskListParams::default())
-            .await?;
-        let matches: Vec<&Task> = tasks
-            .iter()
-            .filter(|t| t.id.starts_with(id_or_prefix))
-            .collect();
-        match matches.len() {
-            1 => Ok(matches[0].id.clone()),
-            0 => Err(ApiError::Http {
-                status: 404,
-                message: format!("任务不存在: {id_or_prefix}"),
-            }),
-            _ => {
-                let ids: Vec<String> = matches
-                    .iter()
-                    .map(|t| format!("  {}  {}", t.id, t.title))
-                    .collect();
-                Err(ApiError::Http {
-                    status: 400,
-                    message: format!(
-                        "任务 ID 前缀 \"{}\" 匹配到多个任务:\n{}",
-                        id_or_prefix,
-                        ids.join("\n")
-                    ),
-                })
-            }
-        }
-    }
-
-    pub async fn create_task(
-        &self,
-        project_id: &str,
-        data: &CreateTaskData,
-    ) -> Result<Task, ApiError> {
-        validate_project_ref(project_id)?;
-        let body = serde_json::to_value(data).map_err(|e| ApiError::Parse(e.to_string()))?;
-        self.post(&format!("/projects/{project_id}/tasks"), &body)
-            .await
-    }
-
-    pub async fn update_task(
-        &self,
-        project_id: &str,
-        task_id: &str,
-        data: &UpdateTaskData,
-    ) -> Result<Task, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        let body = serde_json::to_value(data).map_err(|e| ApiError::Parse(e.to_string()))?;
-        self.patch(&format!("/projects/{project_id}/tasks/{task_id}"), &body)
-            .await
-    }
-
-    pub async fn add_comment(
-        &self,
-        project_id: &str,
-        task_id: &str,
-        content: &str,
-    ) -> Result<Comment, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        let body = serde_json::json!({ "content": content });
-        self.post(
-            &format!("/projects/{project_id}/tasks/{task_id}/comments"),
-            &body,
-        )
-        .await
-    }
-
-    pub async fn lock_task(
-        &self,
-        project_id: &str,
-        task_id: &str,
-        workspace_id: Option<&str>,
-    ) -> Result<Value, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        if let Some(ws) = workspace_id {
-            validate_resource_id(ws, "工作区 ID")?;
-        }
-        let mut body = serde_json::json!({});
-        if let Some(ws) = workspace_id {
-            body["workspaceId"] = serde_json::json!(ws);
-        }
-        self.post(
-            &format!("/projects/{project_id}/tasks/{task_id}/lock"),
-            &body,
-        )
-        .await
-    }
-
-    pub async fn unlock_task(&self, project_id: &str, task_id: &str) -> Result<Value, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/unlock"))
-            .await
-    }
-
-    pub async fn report_execution(
-        &self,
-        project_id: &str,
-        task_id: &str,
-        data: &ExecutionReport,
-    ) -> Result<Value, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        let body = serde_json::to_value(data).unwrap_or_default();
-        self.post(
-            &format!("/projects/{project_id}/tasks/{task_id}/executions"),
-            &body,
-        )
-        .await
-    }
-
-    pub async fn heartbeat(
-        &self,
-        project_id: &str,
-        task_id: &str,
-    ) -> Result<HeartbeatResult, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/heartbeat"))
-            .await
-    }
-
-    pub async fn get_execution_status(
-        &self,
-        project_id: &str,
-    ) -> Result<ExecutionStatus, ApiError> {
-        validate_project_ref(project_id)?;
-        self.get(&format!("/projects/{project_id}/execution-status"))
-            .await
-    }
-
-    pub async fn decompose_task(
-        &self,
-        project_id: &str,
-        task_id: &str,
-    ) -> Result<DecomposeResult, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!("/projects/{project_id}/tasks/{task_id}/decompose"))
-            .await
-    }
-
-    pub async fn force_unlock(&self, project_id: &str, task_id: &str) -> Result<Value, ApiError> {
-        validate_project_ref(project_id)?;
-        validate_resource_id(task_id, "任务 ID")?;
-        self.post_empty(&format!(
-            "/projects/{project_id}/tasks/{task_id}/force-unlock"
-        ))
-        .await
-    }
-
-    pub async fn generate_report(&self, project_id: &str) -> Result<ReportResult, ApiError> {
-        validate_project_ref(project_id)?;
-        self.post_empty(&format!("/projects/{project_id}/report"))
-            .await
-    }
-
     // ---- Issues ----
 
     pub async fn list_issues(
@@ -429,16 +209,30 @@ impl ApiClient {
             .await
     }
 
-    pub async fn decompose_issue(
+    pub async fn accept_issue(&self, project_id: &str, issue_id: &str) -> Result<Issue, ApiError> {
+        validate_project_ref(project_id)?;
+        validate_resource_id(issue_id, "需求 ID")?;
+        self.post_empty(&format!("/projects/{project_id}/issues/{issue_id}/accept"))
+            .await
+    }
+
+    pub async fn deliver_issue(
         &self,
         project_id: &str,
         issue_id: &str,
-    ) -> Result<DecomposeResult, ApiError> {
+        summary: Option<&str>,
+    ) -> Result<Issue, ApiError> {
         validate_project_ref(project_id)?;
         validate_resource_id(issue_id, "需求 ID")?;
-        self.post_empty(&format!(
-            "/projects/{project_id}/issues/{issue_id}/decompose"
-        ))
+        let body = if let Some(s) = summary {
+            serde_json::json!({ "summary": s })
+        } else {
+            serde_json::json!({})
+        };
+        self.post(
+            &format!("/projects/{project_id}/issues/{issue_id}/deliver"),
+            &body,
+        )
         .await
     }
 
@@ -551,48 +345,6 @@ impl ApiClient {
 // ---- Parameter types ----
 
 #[derive(Debug, Default)]
-pub struct TaskListParams {
-    pub status: Option<TaskStatus>,
-    pub task_type: Option<TaskType>,
-    pub priority: Option<TaskPriority>,
-    pub assignee_id: Option<String>,
-    pub search: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateTaskData {
-    pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub task_type: Option<TaskType>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub priority: Option<TaskPriority>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub due_date: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateTaskData {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<TaskStatus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub priority: Option<TaskPriority>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub assignee_id: Option<String>,
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub task_type: Option<TaskType>,
-}
-
-#[derive(Debug, Default)]
 pub struct IssueListParams {
     pub status: Option<IssueStatus>,
     pub issue_type: Option<IssueType>,
@@ -659,11 +411,6 @@ fn validate_project_ref(project_ref: &str) -> Result<(), ApiError> {
         });
     }
     Ok(())
-}
-
-/// Check if a string looks like a full ID (UUID or cuid — contains dashes and >= 20 chars)
-fn is_full_id(s: &str) -> bool {
-    s.contains('-') && s.len() >= 20
 }
 
 fn validate_resource_id(id: &str, label: &str) -> Result<(), ApiError> {

@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 
 use crate::config::config_dir;
 
-/// PID file path: ~/.config/yan-pm-cli/daemon.pid
+/// PID file path: ~/.config/yan/daemon.pid
 fn pid_file() -> PathBuf {
     config_dir().join("daemon.pid")
 }
@@ -61,7 +61,7 @@ pub fn check_running() -> Option<u32> {
 /// Acquire the PID lock. Fails if daemon is already running.
 pub fn acquire_lock() -> Result<()> {
     if let Some(pid) = check_running() {
-        bail!("Daemon 已在运行 (PID: {pid})。使用 `yan-pm daemon stop` 停止后重试。");
+        bail!("Daemon 已在运行 (PID: {pid})。使用 `yan daemon stop` 停止后重试。");
     }
     write_pid().context("无法写入 PID 文件")?;
     Ok(())

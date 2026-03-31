@@ -9,7 +9,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  BINARY_NAME: yan-pm-cli
+  BINARY_NAME: yan
 
 jobs:
   create-release:
