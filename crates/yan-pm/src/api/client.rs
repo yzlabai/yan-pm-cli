@@ -20,12 +20,12 @@ impl ApiClient {
     pub fn new(base_url: &str, token: &str) -> Result<Self, ApiError> {
         if base_url.is_empty() {
             return Err(ApiError::Network(
-                "未配置服务器地址。运行 yan-pm login 或设置 YAN_PM_BASE_URL 环境变量。".into(),
+                "未配置服务器地址。运行 yan login 或设置 YAN_PM_BASE_URL 环境变量。".into(),
             ));
         }
         if token.is_empty() {
             return Err(ApiError::Network(
-                "未配置认证 Token。运行 yan-pm login 或设置 YAN_PM_TOKEN 环境变量。".into(),
+                "未配置认证 Token。运行 yan login 或设置 YAN_PM_TOKEN 环境变量。".into(),
             ));
         }
         let client = Client::builder()
@@ -37,14 +37,6 @@ impl ApiClient {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: token.to_string(),
         })
-    }
-
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
-    pub fn token(&self) -> &str {
-        &self.token
     }
 
     async fn request<T: DeserializeOwned>(

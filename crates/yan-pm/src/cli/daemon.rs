@@ -126,7 +126,7 @@ pub fn logs(follow: bool) -> Result<()> {
         }
         if start > 0 {
             println!(
-                "\n{} 更多日志使用 `yan-pm daemon logs -f` 跟踪",
+                "\n{} 更多日志使用 `yan daemon logs -f` 跟踪",
                 "...".dimmed()
             );
         }

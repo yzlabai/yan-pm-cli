@@ -465,7 +465,7 @@ pub async fn install(
         println!();
 
         if !yes {
-            println!("将为以上工具配置 yan-pm MCP Server。确认? [Y/n]");
+            println!("将为以上工具配置 yan MCP Server。确认? [Y/n]");
             let mut input = String::new();
             std::io::stdin().read_line(&mut input)?;
             let input = input.trim().to_lowercase();
@@ -510,7 +510,7 @@ pub async fn uninstall(target: Option<&str>) -> Result<()> {
             _ => anyhow::bail!("不支持的目标: {t}"),
         }
     } else {
-        println!("{}", "卸载 yan-pm 配置...".bold());
+        println!("{}", "卸载 yan 配置...".bold());
         println!();
         println!("{}", "Claude Code:".bold());
         remove_claude()?;

@@ -5,6 +5,7 @@ use anyhow::Result;
 pub struct ParsedTask {
     pub title: String,
     /// Whether this task is marked as parallel-safe with [P]
+    #[allow(dead_code)]
     pub parallel: bool,
     /// Dependency markers like [D:001-01]
     pub depends_on: Vec<String>,
@@ -79,17 +80,7 @@ pub fn parse_tasks_from_spec(spec_body: &str) -> Result<Vec<ParsedTask>> {
 /// Find the byte offset where a ## section starts
 fn find_section_start(body: &str, section_name: &str) -> Option<usize> {
     // Match "## 任务拆分" or "## Tasks" etc
-    let patterns = [
-        format!("## {}", section_name),
-        format!("## {}\n", section_name),
-    ];
-
-    for pattern in &patterns {
-        if let Some(pos) = body.find(pattern.trim_end()) {
-            return Some(pos);
-        }
-    }
-    None
+    body.find(&format!("## {}", section_name))
 }
 
 /// Extract content of a section (from ## header to next ## or end)

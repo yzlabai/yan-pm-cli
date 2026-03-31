@@ -350,7 +350,7 @@ pub fn stop_daemon() -> Result<()> {
 fn make_daemon_client(url: Option<&str>, token: Option<&str>) -> Result<ApiClient> {
     let resolved = config::resolve_config(url, token);
     if resolved.base_url.is_empty() || resolved.token.is_empty() {
-        anyhow::bail!("未配置 API。请先运行 `yan-pm login`");
+        anyhow::bail!("未配置 API。请先运行 `yan login`");
     }
     Ok(ApiClient::new(&resolved.base_url, &resolved.token)?)
 }

@@ -272,7 +272,9 @@ fn find_next_executable_task(tasks: &[LocalTaskFile], issue_number: i32) -> Opti
         .filter(|t| {
             t.frontmatter.depends_on.iter().all(|dep| {
                 // Check if any done task's stem starts with this dep
-                done_ids.iter().any(|done_id| done_id.starts_with(dep))
+                done_ids
+                    .iter()
+                    .any(|done_id| done_id == dep || done_id.starts_with(&format!("{dep}-")))
             })
         })
         .collect();

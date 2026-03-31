@@ -12,12 +12,12 @@ pub async fn list_local(json: bool, issue_number: Option<i32>, regenerate: bool)
     let link = config::find_workspace_link(Some(Path::new(&cwd.to_string_lossy().as_ref())));
 
     if link.is_none() {
-        anyhow::bail!("当前目录未关联到项目。请先运行 `yan-pm link <project>` 关联");
+        anyhow::bail!("当前目录未关联到项目。请先运行 `yan link <project>` 关联");
     }
 
     let local_dir = LocalDirectory::new(&cwd);
     if !local_dir.is_initialized() {
-        println!("本地任务目录未初始化。请先运行 `yan-pm sync` 同步任务文件。");
+        println!("本地任务目录未初始化。请先运行 `yan sync` 同步任务文件。");
         println!("提示: .yan-pm/tasks/ 目录不存在");
         return Ok(());
     }

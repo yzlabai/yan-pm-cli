@@ -12,6 +12,7 @@ use crate::local::taskfile::TaskFrontmatter;
 /// Used to detect local changes since last sync.
 type MemoryCache = HashMap<String, CachedTask>;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct CachedTask {
     status: TaskStatus,
@@ -40,6 +41,7 @@ impl CachedTask {
 /// Currently only manages local task files. Cloud sync will be repurposed for Issues.
 pub struct SyncEngine {
     local_dir: LocalDirectory,
+    #[allow(dead_code)]
     project_id: String,
     cache: MemoryCache,
 }
@@ -104,6 +106,7 @@ impl SyncEngine {
 }
 
 /// Types of field changes detected between local file and cache.
+#[allow(dead_code)]
 #[derive(Debug)]
 enum FieldChange {
     Title(String),
@@ -114,6 +117,7 @@ enum FieldChange {
 }
 
 /// Compare a local task's frontmatter with the cached version.
+#[allow(dead_code)]
 fn detect_changes(local: &TaskFrontmatter, cached: &CachedTask) -> Vec<FieldChange> {
     let mut changes = Vec::new();
 
@@ -137,6 +141,7 @@ fn detect_changes(local: &TaskFrontmatter, cached: &CachedTask) -> Vec<FieldChan
 }
 
 /// Print sync result to terminal with colors.
+#[allow(dead_code)]
 pub fn print_sync_result(result: &SyncResult) {
     println!("{}", format!("✓ 同步完成: {result}").green());
     if !result.errors.is_empty() {

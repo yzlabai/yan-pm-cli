@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::api::types::{Issue, Task};
+use crate::api::types::Issue;
 
 use super::issuefile::{
     issue_filename, parse_issue_file, render_issue_file, IssueFrontmatter, LocalIssueFile,
@@ -12,9 +12,7 @@ use super::issuefile::{
 use super::specfile::{
     parse_spec_file, render_spec_file, spec_filename, LocalSpecFile, SpecFrontmatter,
 };
-use super::taskfile::{
-    parse_task_file, render_task_file, task_filename, LocalTaskFile, TaskFrontmatter,
-};
+use super::taskfile::{parse_task_file, LocalTaskFile, TaskFrontmatter};
 
 const YAN_PM_DIR: &str = ".yan-pm";
 const TASKS_DIR: &str = "tasks";
@@ -230,65 +228,12 @@ impl LocalDirectory {
         Ok(tasks)
     }
 
-    /// Write a task file to .yan-pm/tasks/.
-    /// Returns the file path written.
-    pub fn write_task(&self, frontmatter: &TaskFrontmatter, body: &str) -> Result<PathBuf> {
-        let filename = task_filename(frontmatter.number, &frontmatter.title);
-        let path = self.tasks_dir().join(&filename);
-        let content = render_task_file(frontmatter, body)?;
-
-        // Atomic write
-        let tmp_path = path.with_extension("md.tmp");
-        fs::write(&tmp_path, &content)?;
-        fs::rename(&tmp_path, &path)?;
-        Ok(path)
-    }
-
-    /// Archive a task file to .yan-pm/done/ (for Done/Cancelled tasks).
-    pub fn archive_task(&self, task_path: &Path) -> Result<()> {
-        if !task_path.exists() {
-            return Ok(());
-        }
-        let filename = task_path.file_name().context("Invalid task file path")?;
-        let dest = self.done_dir().join(filename);
-        fs::rename(task_path, &dest).context("Failed to archive task file")?;
-        Ok(())
-    }
-
-    /// Find a task file by server task ID.
-    pub fn find_task_by_id(&self, task_id: &str) -> Result<Option<LocalTaskFile>> {
-        let tasks = self.scan_tasks()?;
-        Ok(tasks
-            .into_iter()
-            .find(|t| t.frontmatter.id.as_deref() == Some(task_id)))
-    }
-
     /// Remove a task file by path (for cleanup).
     pub fn remove_task_file(&self, path: &Path) -> Result<()> {
         if path.exists() {
             fs::remove_file(path).context("Failed to remove task file")?;
         }
         Ok(())
-    }
-
-    /// Convert a server Task to a TaskFrontmatter.
-    pub fn task_to_frontmatter(task: &Task) -> TaskFrontmatter {
-        TaskFrontmatter {
-            id: Some(task.id.clone()),
-            number: task.number,
-            title: task.title.clone(),
-            task_type: task.task_type,
-            priority: task.priority,
-            status: task.status,
-            tags: task.tags.clone(),
-            depends_on: task.depends_on.clone(),
-            assignee: task.assignee_id.clone(),
-            issue: None,
-            due: task.due_date.clone(),
-            requires: vec![],
-            created: task.created_at.clone(),
-            updated: task.updated_at.clone(),
-        }
     }
 
     // ---- Issue methods ----
@@ -553,93 +498,6 @@ impl LocalDirectory {
             .into_iter()
             .find(|s| s.frontmatter.issue == issue_number))
     }
-
-    /// Write all cloud tasks to local files (full pull).
-    /// Archives Done/Cancelled tasks, creates/updates active ones.
-    pub fn pull_tasks(&self, tasks: &[Task]) -> Result<PullResult> {
-        let mut created = 0;
-        let mut updated = 0;
-        let mut archived = 0;
-
-        // Build a map of existing local tasks by server ID
-        let existing = self.scan_tasks()?;
-        let existing_by_id: std::collections::HashMap<String, LocalTaskFile> = existing
-            .into_iter()
-            .filter_map(|t| t.frontmatter.id.clone().map(|id| (id, t)))
-            .collect();
-
-        for task in tasks {
-            let fm = Self::task_to_frontmatter(task);
-            let body = task.description.as_deref().unwrap_or("");
-
-            match (fm.status, existing_by_id.get(&task.id)) {
-                // Done/Cancelled → archive if exists locally
-                (
-                    crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled,
-                    Some(local),
-                ) => {
-                    self.archive_task(&local.file_path)?;
-                    archived += 1;
-                }
-                // Done/Cancelled but not local → write to done/ directly
-                (
-                    crate::api::types::TaskStatus::Done | crate::api::types::TaskStatus::Cancelled,
-                    None,
-                ) => {
-                    let filename = task_filename(fm.number, &fm.title);
-                    let path = self.done_dir().join(&filename);
-                    let content = render_task_file(&fm, body)?;
-                    fs::write(&path, &content)?;
-                    archived += 1;
-                }
-                // Active task exists locally → update
-                (_, Some(local)) => {
-                    // Remove old file if filename changed (due to number/title change)
-                    let new_filename = task_filename(fm.number, &fm.title);
-                    let old_filename = local
-                        .file_path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    if new_filename != old_filename {
-                        self.remove_task_file(&local.file_path)?;
-                    }
-                    self.write_task(&fm, body)?;
-                    updated += 1;
-                }
-                // Active task not local → create
-                (_, None) => {
-                    self.write_task(&fm, body)?;
-                    created += 1;
-                }
-            }
-        }
-
-        Ok(PullResult {
-            created,
-            updated,
-            archived,
-        })
-    }
-}
-
-/// Result of a pull operation.
-#[derive(Debug)]
-pub struct PullResult {
-    pub created: usize,
-    pub updated: usize,
-    pub archived: usize,
-}
-
-impl std::fmt::Display for PullResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "拉取完成: {} 新建, {} 更新, {} 归档",
-            self.created, self.updated, self.archived
-        )
-    }
 }
 
 /// Result of an issue pull operation.
@@ -653,31 +511,6 @@ pub struct PullIssueResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::*;
-
-    fn make_task(id: &str, number: Option<i32>, title: &str, status: TaskStatus) -> Task {
-        Task {
-            id: id.to_string(),
-            project_id: "proj-1".to_string(),
-            title: title.to_string(),
-            description: Some("Test body".to_string()),
-            task_type: TaskType::Task,
-            priority: TaskPriority::Medium,
-            status,
-            tags: vec![],
-            depends_on: vec![],
-            sort_order: None,
-            due_date: None,
-            locked_by: None,
-            locked_at: None,
-            last_heartbeat: None,
-            number,
-            created_at: "2026-01-01T00:00:00Z".to_string(),
-            updated_at: "2026-01-01T00:00:00Z".to_string(),
-            assignee_id: None,
-            creator_id: None,
-        }
-    }
 
     #[test]
     fn test_init_creates_directories() {
@@ -743,151 +576,6 @@ mod tests {
 
         let tasks = ld.scan_tasks().unwrap();
         assert!(tasks.is_empty());
-    }
-
-    #[test]
-    fn test_write_and_scan_task() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ld = LocalDirectory::new(tmp.path());
-        ld.init().unwrap();
-
-        let fm = TaskFrontmatter {
-            id: Some("task-001".into()),
-            number: Some(1),
-            title: "Implement feature".into(),
-            task_type: TaskType::Feature,
-            priority: TaskPriority::High,
-            status: TaskStatus::Todo,
-            tags: vec!["v1".into()],
-            depends_on: vec![],
-            assignee: None,
-            issue: None,
-            due: None,
-            requires: vec![],
-            created: "2026-01-01T00:00:00Z".into(),
-            updated: "2026-01-01T00:00:00Z".into(),
-        };
-        let path = ld.write_task(&fm, "Description here").unwrap();
-        assert!(path.exists());
-
-        let tasks = ld.scan_tasks().unwrap();
-        assert_eq!(tasks.len(), 1);
-        assert_eq!(tasks[0].frontmatter.title, "Implement feature");
-        assert_eq!(tasks[0].frontmatter.id.as_deref(), Some("task-001"));
-    }
-
-    #[test]
-    fn test_archive_task() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ld = LocalDirectory::new(tmp.path());
-        ld.init().unwrap();
-
-        let fm = TaskFrontmatter {
-            id: Some("task-002".into()),
-            number: Some(2),
-            title: "Fix bug".into(),
-            task_type: TaskType::Bug,
-            priority: TaskPriority::Urgent,
-            status: TaskStatus::InProgress,
-            tags: vec![],
-            depends_on: vec![],
-            assignee: None,
-            issue: None,
-            due: None,
-            requires: vec![],
-            created: "2026-01-01T00:00:00Z".into(),
-            updated: "2026-01-01T00:00:00Z".into(),
-        };
-        let path = ld.write_task(&fm, "Bug details").unwrap();
-        assert!(path.exists());
-
-        ld.archive_task(&path).unwrap();
-        assert!(!path.exists());
-
-        // The file should be in done/
-        let done_files: Vec<_> = std::fs::read_dir(ld.done_dir())
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .collect();
-        assert_eq!(done_files.len(), 1);
-    }
-
-    #[test]
-    fn test_find_task_by_id() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ld = LocalDirectory::new(tmp.path());
-        ld.init().unwrap();
-
-        let fm = TaskFrontmatter {
-            id: Some("task-xyz".into()),
-            number: Some(5),
-            title: "Searchable".into(),
-            task_type: TaskType::Task,
-            priority: TaskPriority::Low,
-            status: TaskStatus::Todo,
-            tags: vec![],
-            depends_on: vec![],
-            assignee: None,
-            issue: None,
-            due: None,
-            requires: vec![],
-            created: "2026-01-01T00:00:00Z".into(),
-            updated: "2026-01-01T00:00:00Z".into(),
-        };
-        ld.write_task(&fm, "").unwrap();
-
-        assert!(ld.find_task_by_id("task-xyz").unwrap().is_some());
-        assert!(ld.find_task_by_id("nonexistent").unwrap().is_none());
-    }
-
-    #[test]
-    fn test_task_to_frontmatter() {
-        let task = make_task("id-1", Some(3), "My Task", TaskStatus::InProgress);
-        let fm = LocalDirectory::task_to_frontmatter(&task);
-        assert_eq!(fm.id.as_deref(), Some("id-1"));
-        assert_eq!(fm.number, Some(3));
-        assert_eq!(fm.title, "My Task");
-        assert_eq!(fm.status, TaskStatus::InProgress);
-        assert_eq!(fm.priority, TaskPriority::Medium);
-    }
-
-    #[test]
-    fn test_pull_tasks_creates_and_archives() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ld = LocalDirectory::new(tmp.path());
-        ld.init().unwrap();
-
-        let tasks = vec![
-            make_task("t1", Some(1), "Active one", TaskStatus::Todo),
-            make_task("t2", Some(2), "Done one", TaskStatus::Done),
-            make_task("t3", Some(3), "Active two", TaskStatus::InProgress),
-        ];
-
-        let result = ld.pull_tasks(&tasks).unwrap();
-        assert_eq!(result.created, 2); // t1, t3
-        assert_eq!(result.archived, 1); // t2
-
-        let active = ld.scan_tasks().unwrap();
-        assert_eq!(active.len(), 2);
-
-        let done_files: Vec<_> = std::fs::read_dir(ld.done_dir())
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .collect();
-        assert_eq!(done_files.len(), 1);
-    }
-
-    #[test]
-    fn test_pull_result_display() {
-        let r = PullResult {
-            created: 3,
-            updated: 1,
-            archived: 2,
-        };
-        let s = format!("{}", r);
-        assert!(s.contains("3 新建"));
-        assert!(s.contains("1 更新"));
-        assert!(s.contains("2 归档"));
     }
 
     #[test]

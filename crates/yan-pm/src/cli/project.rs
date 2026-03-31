@@ -28,9 +28,8 @@ pub async fn sync_info(
 ) -> Result<()> {
     // 1. 从 workspace link 获取 project_id
     let cwd = std::env::current_dir().context("无法获取当前目录")?;
-    let link = config::find_workspace_link(Some(&cwd)).ok_or_else(|| {
-        anyhow::anyhow!("当前目录未关联项目。请先运行 `yan-pm link <project-id>`")
-    })?;
+    let link = config::find_workspace_link(Some(&cwd))
+        .ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行 `yan link <project-id>`"))?;
 
     let client = make_client(url, token)?;
 

@@ -26,7 +26,7 @@ pub fn make_client(url: Option<&str>, token: Option<&str>) -> Result<ApiClient> 
     let resolved = config::resolve_config(url, token);
     if resolved.base_url.is_empty() || resolved.token.is_empty() {
         anyhow::bail!(
-            "未配置。请先运行 `yan-pm login` 或设置环境变量:\n  export YAN_PM_BASE_URL=https://your-domain.com\n  export YAN_PM_TOKEN=your_token"
+            "未配置。请先运行 `yan login` 或设置环境变量:\n  export YAN_PM_BASE_URL=https://your-domain.com\n  export YAN_PM_TOKEN=your_token"
         );
     }
     ApiClient::new(&resolved.base_url, &resolved.token).map_err(|e| anyhow::anyhow!("{e}"))

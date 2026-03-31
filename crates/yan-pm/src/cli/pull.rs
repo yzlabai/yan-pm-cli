@@ -2,14 +2,14 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::api::client::{ApiClient, IssueListParams};
+use crate::api::client::IssueListParams;
 use crate::config;
 use crate::local::directory::LocalDirectory;
 
 pub async fn handle_pull(url: Option<&str>, token: Option<&str>, json: bool) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let link = config::find_workspace_link(Some(Path::new(&cwd.to_string_lossy().as_ref())))
-        .ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行: yan-pm link <project>"))?;
+        .ok_or_else(|| anyhow::anyhow!("当前目录未关联项目。请先运行: yan link <project>"))?;
 
     let api = super::make_client(url, token)?;
 

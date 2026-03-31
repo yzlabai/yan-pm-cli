@@ -42,17 +42,6 @@ pub enum TaskPriority {
     Low,
 }
 
-impl TaskPriority {
-    pub fn order(&self) -> u8 {
-        match self {
-            Self::Urgent => 0,
-            Self::High => 1,
-            Self::Medium => 2,
-            Self::Low => 3,
-        }
-    }
-}
-
 impl std::fmt::Display for TaskPriority {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -161,6 +150,7 @@ pub struct ProjectDetail {
     pub members: Vec<ProjectMember>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
@@ -187,6 +177,7 @@ pub struct Task {
     pub creator_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskDetail {
@@ -197,6 +188,7 @@ pub struct TaskDetail {
     pub assignee_name: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Comment {

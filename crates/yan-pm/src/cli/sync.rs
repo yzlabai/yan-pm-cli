@@ -12,7 +12,7 @@ pub async fn run(url: Option<&str>, token: Option<&str>) -> Result<()> {
 
     let entry = match link {
         Some(e) => e,
-        None => bail!("当前目录未关联到项目。请先运行 `yan-pm link <project>`"),
+        None => bail!("当前目录未关联到项目。请先运行 `yan link <project>`"),
     };
 
     let client = super::make_client(url, token)?;

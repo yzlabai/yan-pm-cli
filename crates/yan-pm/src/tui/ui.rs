@@ -61,7 +61,7 @@ fn render_header(f: &mut Frame, area: Rect, app: &App) {
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" yan-pm Dashboard "),
+            .title(" yan Dashboard "),
     );
 
     f.render_widget(header, area);

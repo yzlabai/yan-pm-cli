@@ -46,31 +46,6 @@ pub fn print_projects(projects: &[Project]) {
     println!("{table}");
 }
 
-pub fn print_tasks(tasks: &[Task]) {
-    if tasks.is_empty() {
-        println!("{}", "没有找到任务".yellow());
-        return;
-    }
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_header(vec!["ID", "标题", "类型", "优先级", "状态", "标签"]);
-
-    for t in tasks {
-        let short_id = &t.id[..8.min(t.id.len())];
-        table.add_row(vec![
-            Cell::new(short_id).fg(Color::DarkGrey),
-            Cell::new(&t.title),
-            Cell::new(format!("{}", t.task_type)),
-            Cell::new(format!("{}", t.priority)).fg(priority_color(t.priority)),
-            Cell::new(format!("{}", t.status)).fg(status_color(t.status)),
-            Cell::new(t.tags.join(", ")),
-        ]);
-    }
-    println!("{table}");
-}
-
 pub fn print_issues(issues: &[Issue]) {
     if issues.is_empty() {
         println!("{}", "没有找到需求".yellow());
@@ -178,7 +153,7 @@ fn status_color(s: TaskStatus) -> Color {
 pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
     let daemon_icon = if data.daemon_running { "✓" } else { "✗" };
     println!("╭─────────────────────────────────────────────────────────────────╮");
-    println!("│{:^65}│", format!("yan-pm Dashboard"));
+    println!("│{:^65}│", format!("yan Dashboard"));
     println!(
         "│{:^65}│",
         format!(
@@ -192,7 +167,7 @@ pub fn print_dashboard(data: &crate::cli::dashboard::DashboardData) {
     if data.workspaces.is_empty() {
         println!(
             "{}",
-            "没有已关联的工作区。使用 `yan-pm link <project>` 关联。".yellow()
+            "没有已关联的工作区。使用 `yan link <project>` 关联。".yellow()
         );
         return;
     }

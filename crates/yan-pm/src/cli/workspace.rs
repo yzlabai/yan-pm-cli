@@ -149,7 +149,7 @@ pub async fn info(url: Option<&str>, token: Option<&str>, json: bool) -> Result<
             } else {
                 println!(
                     "{}",
-                    "当前目录未关联到任何项目。使用 `yan-pm link <projectId>` 关联。".yellow()
+                    "当前目录未关联到任何项目。使用 `yan link <projectId>` 关联。".yellow()
                 );
             }
         }

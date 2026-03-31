@@ -4,6 +4,7 @@ use crate::agent::AgentBackend;
 use crate::api::client::ApiClient;
 
 /// Options for task execution
+#[allow(dead_code)]
 pub struct TaskRunnerOptions {
     pub cwd: String,
     pub workspace_id: Option<String>,
@@ -17,6 +18,7 @@ pub struct TaskRunnerOptions {
 }
 
 /// Options for the start command
+#[allow(dead_code)]
 pub struct StartOptions {
     pub project_id: String,
     pub task_id: Option<String>,
@@ -26,6 +28,7 @@ pub struct StartOptions {
 }
 
 /// Main start entry point — disabled during Phase 2 refactor
+#[allow(dead_code)]
 pub async fn start(_client: &ApiClient, _options: StartOptions) -> Result<()> {
-    bail!("yan-pm start 正在重构中，请使用 AI 编程工具直接执行")
+    bail!("yan start 正在重构中，请使用 AI 编程工具直接执行")
 }

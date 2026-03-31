@@ -1,9 +1,4 @@
-#![allow(
-    clippy::too_many_arguments,
-    clippy::module_inception,
-    dead_code,
-    unused_imports
-)]
+#![allow(clippy::too_many_arguments, clippy::module_inception)]
 
 mod agent;
 mod api;
@@ -162,7 +157,7 @@ enum Commands {
         #[command(subcommand)]
         action: ProjectAction,
     },
-    /// 安装 yan-pm 到 AI 工具（Claude Code / VS Code / Cursor）
+    /// 安装 yan 到 AI 工具（Claude Code / VS Code / Cursor）
     Setup {
         /// 指定目标工具 (claude/vscode/cursor)
         #[arg(long)]
