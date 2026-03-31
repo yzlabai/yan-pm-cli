@@ -133,7 +133,7 @@ fn test_list_no_config() {
 fn test_issues_no_config() {
     let tmp = tempfile::tempdir().unwrap();
     cmd()
-        .args(["issues", "test-project"])
+        .args(["issue", "list", "test-project"])
         .env("HOME", tmp.path())
         .env_remove("YAN_PM_BASE_URL")
         .env_remove("YAN_PM_TOKEN")
@@ -222,53 +222,6 @@ async fn test_list_projects_json_output() {
 }
 
 #[tokio::test]
-async fn test_list_tasks_with_mock() {
-    let mut server = mockito::Server::new_async().await;
-    let mock = server
-        .mock("GET", "/api/projects/proj-1/tasks")
-        .match_query(mockito::Matcher::Any)
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(
-            serde_json::json!([
-                {
-                    "id": "task-1111-2222-3333-444444444444",
-                    "projectId": "proj-1",
-                    "title": "Implement Login",
-                    "description": null,
-                    "type": "feature",
-                    "priority": "high",
-                    "status": "todo",
-                    "tags": [],
-                    "sortOrder": null,
-                    "dueDate": null,
-                    "lockedBy": null,
-                    "lockedAt": null,
-                    "lastHeartbeat": null,
-                    "number": 1,
-                    "createdAt": "2026-03-25T00:00:00Z",
-                    "updatedAt": "2026-03-25T00:00:00Z",
-                    "assigneeId": null,
-                    "creatorId": null
-                }
-            ])
-            .to_string(),
-        )
-        .create_async()
-        .await;
-
-    cmd()
-        .args(["tasks", "proj-1", "--url"])
-        .arg(server.url())
-        .args(["--token", "test-token"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Implement Login"));
-
-    mock.assert_async().await;
-}
-
-#[tokio::test]
 async fn test_list_issues_with_mock() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
@@ -299,56 +252,12 @@ async fn test_list_issues_with_mock() {
         .await;
 
     cmd()
-        .args(["issues", "proj-1", "--url"])
+        .args(["issue", "list", "proj-1", "--url"])
         .arg(server.url())
         .args(["--token", "test-token"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Login Timeout Bug"));
-
-    mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn test_create_task_with_mock() {
-    let mut server = mockito::Server::new_async().await;
-    let mock = server
-        .mock("POST", "/api/projects/proj-1/tasks")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(
-            serde_json::json!({
-                "id": "task-new1-2222-3333-444444444444",
-                "projectId": "proj-1",
-                "title": "New Feature",
-                "description": null,
-                "type": "feature",
-                "priority": "medium",
-                "status": "todo",
-                "tags": [],
-                "sortOrder": null,
-                "dueDate": null,
-                "lockedBy": null,
-                "lockedAt": null,
-                "lastHeartbeat": null,
-                "number": 5,
-                "createdAt": "2026-03-25T00:00:00Z",
-                "updatedAt": "2026-03-25T00:00:00Z",
-                "assigneeId": null,
-                "creatorId": null
-            })
-            .to_string(),
-        )
-        .create_async()
-        .await;
-
-    cmd()
-        .args(["create", "proj-1", "--title", "New Feature", "--url"])
-        .arg(server.url())
-        .args(["--token", "test-token"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("New Feature"));
 
     mock.assert_async().await;
 }
@@ -398,158 +307,28 @@ async fn test_api_error_500() {
     mock.assert_async().await;
 }
 
-#[tokio::test]
-async fn test_report_with_mock() {
-    let mut server = mockito::Server::new_async().await;
-    // report uses POST /projects/{id}/report
-    let mock = server
-        .mock("POST", "/api/projects/proj-1/report")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(
-            serde_json::json!({
-                "report": "# Project Report\n\nCompletion: 50%"
-            })
-            .to_string(),
-        )
-        .create_async()
-        .await;
-
-    cmd()
-        .args(["report", "proj-1", "--url"])
-        .arg(server.url())
-        .args(["--token", "test-token"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Project Report"));
-
-    mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn test_update_task_with_mock() {
-    let mut server = mockito::Server::new_async().await;
-    let task_id = "task-1111-2222-3333-444444444444";
-    let mock = server
-        .mock(
-            "PATCH",
-            format!("/api/projects/proj-1/tasks/{task_id}").as_str(),
-        )
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(
-            serde_json::json!({
-                "id": task_id,
-                "projectId": "proj-1",
-                "title": "Updated Title",
-                "description": null,
-                "type": "feature",
-                "priority": "high",
-                "status": "in_progress",
-                "tags": [],
-                "sortOrder": null,
-                "dueDate": null,
-                "lockedBy": null,
-                "lockedAt": null,
-                "lastHeartbeat": null,
-                "number": 1,
-                "createdAt": "2026-03-25T00:00:00Z",
-                "updatedAt": "2026-03-25T00:00:00Z",
-                "assigneeId": null,
-                "creatorId": null
-            })
-            .to_string(),
-        )
-        .create_async()
-        .await;
-
-    cmd()
-        .args([
-            "update",
-            "proj-1",
-            task_id,
-            "--title",
-            "Updated Title",
-            "--status",
-            "in_progress",
-            "--url",
-        ])
-        .arg(server.url())
-        .args(["--token", "test-token"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Updated Title"));
-
-    mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn test_comment_with_mock() {
-    let mut server = mockito::Server::new_async().await;
-    let task_id = "task-1111-2222-3333-444444444444";
-    let mock = server
-        .mock(
-            "POST",
-            format!("/api/projects/proj-1/tasks/{task_id}/comments").as_str(),
-        )
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(
-            serde_json::json!({
-                "id": "comment-1",
-                "taskId": task_id,
-                "userId": "user-1",
-                "content": "LGTM",
-                "createdAt": "2026-03-25T00:00:00Z",
-                "userName": "Test User"
-            })
-            .to_string(),
-        )
-        .create_async()
-        .await;
-
-    cmd()
-        .args(["comment", "proj-1", task_id, "LGTM", "--url"])
-        .arg(server.url())
-        .args(["--token", "test-token"])
-        .assert()
-        .success();
-
-    mock.assert_async().await;
-}
-
 // =====================
-// 新增 CLI 选项测试
+// Issue subcommand tests
 // =====================
 
 #[test]
-fn test_tasks_help_shows_all_filters() {
+fn test_issue_help_shows_subcommands() {
     cmd()
-        .args(["tasks", "--help"])
+        .args(["issue", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("--status"))
-        .stdout(predicate::str::contains("--type"))
-        .stdout(predicate::str::contains("--priority"))
-        .stdout(predicate::str::contains("--assignee"))
-        .stdout(predicate::str::contains("--keyword"))
-        .stdout(predicate::str::contains("--local"));
+        .stdout(predicate::str::contains("list"))
+        .stdout(predicate::str::contains("show"))
+        .stdout(predicate::str::contains("create"))
+        .stdout(predicate::str::contains("update"))
+        .stdout(predicate::str::contains("accept"))
+        .stdout(predicate::str::contains("deliver"));
 }
 
 #[test]
-fn test_create_help_shows_due_and_tags() {
+fn test_issue_list_help_shows_filters() {
     cmd()
-        .args(["create", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("--due"))
-        .stdout(predicate::str::contains("--tags"));
-}
-
-#[test]
-fn test_issues_help_shows_priority_filter() {
-    cmd()
-        .args(["issues", "--help"])
+        .args(["issue", "list", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--priority"))
@@ -558,9 +337,9 @@ fn test_issues_help_shows_priority_filter() {
 }
 
 #[test]
-fn test_update_issue_help_shows_assignee() {
+fn test_issue_update_help_shows_assignee() {
     cmd()
-        .args(["update-issue", "--help"])
+        .args(["issue", "update", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("--assignee"))
@@ -568,56 +347,82 @@ fn test_update_issue_help_shows_assignee() {
 }
 
 #[test]
-fn test_link_help_shows_path_and_name() {
+fn test_issue_create_help_shows_desc_alias() {
     cmd()
-        .args(["link", "--help"])
+        .args(["issue", "create", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("--path"))
-        .stdout(predicate::str::contains("--name"));
-}
-
-#[test]
-fn test_login_help_shows_token() {
-    cmd()
-        .args(["login", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("--token"));
-}
-
-#[test]
-fn test_start_help_shows_cwd_and_budgets() {
-    cmd()
-        .args(["start", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("--cwd"))
-        .stdout(predicate::str::contains("--budget"))
-        .stdout(predicate::str::contains("--total-budget"));
+        .stdout(predicate::str::contains("--description"));
 }
 
 #[tokio::test]
-async fn test_tasks_with_type_filter() {
+async fn test_issue_accept_with_mock() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/api/projects/proj-1/tasks")
-        .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
-            "type".into(),
-            "bug".into(),
-        )]))
+        .mock("POST", "/api/projects/proj-1/issues/issue-123/accept")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body("[]")
+        .with_body(
+            serde_json::json!({
+                "id": "issue-123",
+                "projectId": "proj-1",
+                "number": 1,
+                "title": "Test Issue",
+                "type": "feature",
+                "priority": "high",
+                "status": "accepted",
+                "labels": [],
+                "createdAt": "2026-03-25T00:00:00Z",
+                "updatedAt": "2026-03-25T00:00:00Z"
+            })
+            .to_string(),
+        )
         .create_async()
         .await;
 
     cmd()
-        .args(["tasks", "proj-1", "--type", "bug", "--url"])
+        .args(["issue", "accept", "proj-1", "issue-123", "--url"])
         .arg(server.url())
         .args(["--token", "test-token"])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("已接受"));
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_issue_deliver_with_mock() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("POST", "/api/projects/proj-1/issues/issue-123/deliver")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            serde_json::json!({
+                "id": "issue-123",
+                "projectId": "proj-1",
+                "number": 1,
+                "title": "Test Issue",
+                "type": "feature",
+                "priority": "high",
+                "status": "delivered",
+                "labels": [],
+                "createdAt": "2026-03-25T00:00:00Z",
+                "updatedAt": "2026-03-25T00:00:00Z"
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+
+    cmd()
+        .args(["issue", "deliver", "proj-1", "issue-123", "--url"])
+        .arg(server.url())
+        .args(["--token", "test-token"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("已交付"));
 
     mock.assert_async().await;
 }
@@ -638,13 +443,26 @@ async fn test_issues_with_priority_filter() {
         .await;
 
     cmd()
-        .args(["issues", "proj-1", "--priority", "urgent", "--url"])
+        .args(["issue", "list", "proj-1", "--priority", "urgent", "--url"])
         .arg(server.url())
         .args(["--token", "test-token"])
         .assert()
         .success();
 
     mock.assert_async().await;
+}
+
+// =====================
+// Tasks (local only) tests
+// =====================
+
+#[test]
+fn test_tasks_help_shows_local() {
+    cmd()
+        .args(["tasks", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--local"));
 }
 
 // =====================
@@ -724,17 +542,16 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
     assert_eq!(list_resp["jsonrpc"], "2.0");
     assert_eq!(list_resp["id"], 2);
     let tools = list_resp["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 14);
+    assert_eq!(tools.len(), 8);
 
     // Verify key tool names are present
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"list_projects"));
-    assert!(names.contains(&"list_tasks"));
-    assert!(names.contains(&"create_task"));
     assert!(names.contains(&"list_issues"));
     assert!(names.contains(&"get_issue"));
     assert!(names.contains(&"create_issue"));
-    assert!(names.contains(&"decompose_issue"));
+    assert!(names.contains(&"accept_issue"));
+    assert!(names.contains(&"deliver_issue"));
 
     // Each tool must have inputSchema with type "object"
     for tool in tools {
@@ -785,30 +602,33 @@ fn test_start_help_shows_tools_and_mcp_config() {
 }
 
 #[test]
-fn test_tasks_search_alias() {
-    // --search should be accepted as alias for --keyword
-    let cmd = Command::cargo_bin("yan-pm-cli")
-        .unwrap()
-        .args(["tasks", "--help"])
-        .output()
-        .unwrap();
-    let help = String::from_utf8(cmd.stdout).unwrap();
-    assert!(help.contains("--keyword"), "should show --keyword flag");
+fn test_link_help_shows_path_and_name() {
+    cmd()
+        .args(["link", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--path"))
+        .stdout(predicate::str::contains("--name"));
 }
 
 #[test]
-fn test_create_desc_alias() {
-    // --desc should be accepted as alias for --description
-    let cmd = Command::cargo_bin("yan-pm-cli")
-        .unwrap()
-        .args(["create", "--help"])
-        .output()
-        .unwrap();
-    let help = String::from_utf8(cmd.stdout).unwrap();
-    assert!(
-        help.contains("--description"),
-        "should show --description flag"
-    );
+fn test_login_help_shows_token() {
+    cmd()
+        .args(["login", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--token"));
+}
+
+#[test]
+fn test_start_help_shows_cwd_and_budgets() {
+    cmd()
+        .args(["start", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--cwd"))
+        .stdout(predicate::str::contains("--budget"))
+        .stdout(predicate::str::contains("--total-budget"));
 }
 
 // =====================

@@ -123,45 +123,6 @@ pub fn print_workspaces(workspaces: &[Workspace]) {
     println!("{table}");
 }
 
-pub fn print_execution_status(status: &ExecutionStatus) {
-    if status.tasks.is_empty() {
-        println!("{}", "没有正在执行的任务".yellow());
-        return;
-    }
-    let threshold = status.stale_threshold_ms.unwrap_or(300_000);
-    let now = chrono::Utc::now();
-
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_header(vec!["ID", "标题", "状态", "锁定者", "上次心跳", "是否过期"]);
-
-    for t in &status.tasks {
-        let short_id = &t.id[..8.min(t.id.len())];
-        let is_stale = t
-            .last_heartbeat
-            .as_ref()
-            .and_then(|h| chrono::DateTime::parse_from_rfc3339(h).ok())
-            .map(|h| (now - h.with_timezone(&chrono::Utc)).num_milliseconds() as u64 > threshold)
-            .unwrap_or(true);
-
-        table.add_row(vec![
-            Cell::new(short_id).fg(Color::DarkGrey),
-            Cell::new(&t.title),
-            Cell::new(format!("{}", t.status)),
-            Cell::new(t.locked_by.as_deref().unwrap_or("-")),
-            Cell::new(t.last_heartbeat.as_deref().unwrap_or("-")),
-            Cell::new(if is_stale { "⚠ 过期" } else { "✓ 正常" }).fg(if is_stale {
-                Color::Red
-            } else {
-                Color::Green
-            }),
-        ]);
-    }
-    println!("{table}");
-}
-
 pub fn print_local_tasks(tasks: &[LocalTaskFile]) {
     if tasks.is_empty() {
         println!("{}", "没有找到本地任务文件".yellow());
@@ -425,9 +386,9 @@ fn format_elapsed(rfc3339: &str) -> String {
 fn issue_status_color(s: IssueStatus) -> Color {
     match s {
         IssueStatus::Open => Color::Cyan,
-        IssueStatus::Analyzing => Color::Yellow,
-        IssueStatus::TasksCreated => Color::Green,
-        IssueStatus::NeedsManual => Color::Red,
+        IssueStatus::Accepted => Color::Yellow,
+        IssueStatus::Delivered => Color::Green,
+        IssueStatus::Closed => Color::Blue,
         IssueStatus::Cancelled => Color::DarkGrey,
     }
 }

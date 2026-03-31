@@ -19,22 +19,6 @@ pub async fn list(url: Option<&str>, token: Option<&str>, json: bool) -> Result<
     Ok(())
 }
 
-pub async fn report(
-    url: Option<&str>,
-    token: Option<&str>,
-    json: bool,
-    project_id: &str,
-) -> Result<()> {
-    let client = make_client(url, token)?;
-    let report = client.generate_report(project_id).await?;
-    if json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
-    } else {
-        println!("{}", report.report);
-    }
-    Ok(())
-}
-
 pub async fn sync_info(
     url: Option<&str>,
     token: Option<&str>,

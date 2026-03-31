@@ -1,4 +1,9 @@
-#![allow(clippy::too_many_arguments, clippy::module_inception)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::module_inception,
+    dead_code,
+    unused_imports
+)]
 
 mod agent;
 mod api;
@@ -17,7 +22,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "yan-pm-cli",
-    about = "yan.chat 项目管理终端 CLI — 任务管理 + AI Agent 执行 + MCP 桥接",
+    about = "yan.chat 项目管理终端 CLI — 需求管理 + AI Agent 执行 + MCP 桥接",
     version
 )]
 struct Cli {
@@ -47,162 +52,30 @@ enum Commands {
     },
     /// 列出所有项目
     List,
-    /// 列出项目任务（在已关联目录中可读本地文件）
+    /// Issue（需求）管理
+    Issue {
+        #[command(subcommand)]
+        action: IssueAction,
+    },
+    /// 列出本地任务文件
     Tasks {
-        /// 项目 slug 或 ID（在已关联目录中可省略）
-        project_id: Option<String>,
-        /// 按状态筛选
-        #[arg(long)]
-        status: Option<String>,
-        /// 按类型筛选
-        #[arg(long = "type")]
-        task_type: Option<String>,
-        /// 按优先级筛选
-        #[arg(long)]
-        priority: Option<String>,
-        /// 按负责人筛选
-        #[arg(long)]
-        assignee: Option<String>,
-        /// 关键词搜索
-        #[arg(long, alias = "search")]
-        keyword: Option<String>,
+        /// Issue 编号（筛选该 Issue 的 tasks）
+        issue_number: Option<i32>,
         /// 强制从本地文件读取
         #[arg(long)]
         local: bool,
     },
-    /// 创建新任务
-    Create {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 任务标题
-        #[arg(long)]
-        title: String,
-        /// 任务描述
-        #[arg(long, alias = "desc")]
-        description: Option<String>,
-        /// 任务类型 (feature/bug/improvement/task)
-        #[arg(long = "type")]
-        task_type: Option<String>,
-        /// 优先级 (urgent/high/medium/low)
-        #[arg(long)]
-        priority: Option<String>,
-        /// 负责人 ID
-        #[arg(long)]
-        assignee: Option<String>,
-        /// 截止日期 (ISO 8601, 如 2026-04-01)
-        #[arg(long)]
-        due: Option<String>,
-        /// 标签 (逗号分隔)
-        #[arg(long)]
-        tags: Option<String>,
+    /// 从云端拉取最新 Issue
+    Pull,
+    /// 为 Issue 生成技术规格
+    Spec {
+        /// Issue 编号
+        issue_number: i32,
     },
-    /// 更新任务
-    Update {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 任务 ID
-        task_id: String,
-        /// 新标题
-        #[arg(long)]
-        title: Option<String>,
-        /// 新状态
-        #[arg(long)]
-        status: Option<String>,
-        /// 新优先级
-        #[arg(long)]
-        priority: Option<String>,
-        /// 新负责人
-        #[arg(long)]
-        assignee: Option<String>,
-        /// 新类型
-        #[arg(long = "type")]
-        task_type: Option<String>,
-    },
-    /// 添加任务评论
-    Comment {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 任务 ID
-        task_id: String,
-        /// 评论内容
-        content: String,
-    },
-    /// 生成 AI 项目报告
-    Report {
-        /// 项目 slug 或 ID
-        project_id: String,
-    },
-    /// 列出项目需求
-    Issues {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 按状态筛选
-        #[arg(long)]
-        status: Option<String>,
-        /// 按类型筛选
-        #[arg(long = "type")]
-        issue_type: Option<String>,
-        /// 按优先级筛选
-        #[arg(long)]
-        priority: Option<String>,
-        /// 关键词搜索
-        #[arg(long, alias = "search")]
-        keyword: Option<String>,
-    },
-    /// 创建新需求
-    CreateIssue {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 需求标题
-        #[arg(long)]
-        title: String,
-        /// 需求描述
-        #[arg(long, alias = "desc")]
-        description: Option<String>,
-        /// 类型 (feature/bug/improvement/question)
-        #[arg(long = "type")]
-        issue_type: Option<String>,
-        /// 优先级
-        #[arg(long)]
-        priority: Option<String>,
-        /// 负责人 ID
-        #[arg(long)]
-        assignee: Option<String>,
-        /// 标签 (逗号分隔)
-        #[arg(long)]
-        labels: Option<String>,
-    },
-    /// 更新需求
-    UpdateIssue {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 需求 ID
-        issue_id: String,
-        /// 新标题
-        #[arg(long)]
-        title: Option<String>,
-        /// 新状态
-        #[arg(long)]
-        status: Option<String>,
-        /// 新优先级
-        #[arg(long)]
-        priority: Option<String>,
-        /// 新类型
-        #[arg(long = "type")]
-        issue_type: Option<String>,
-        /// 负责人 ID
-        #[arg(long)]
-        assignee: Option<String>,
-        /// 新标签 (逗号分隔)
-        #[arg(long)]
-        labels: Option<String>,
-    },
-    /// AI 需求分解为任务
-    DecomposeIssue {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 需求 ID
-        issue_id: String,
+    /// 验证实现
+    Verify {
+        /// Issue 编号
+        issue_number: i32,
     },
     /// 关联当前目录到项目
     Link {
@@ -224,20 +97,6 @@ enum Commands {
     },
     /// 显示当前目录的项目信息
     Info,
-    /// 查看执行状态
-    Status {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 任务 ID（可选，不指定则显示项目级别状态）
-        task_id: Option<String>,
-    },
-    /// 强制解锁任务
-    ForceUnlock {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 任务 ID
-        task_id: String,
-    },
     /// 启动 AI Agent 执行任务
     Start {
         /// 项目 slug 或 ID
@@ -337,6 +196,99 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+enum IssueAction {
+    /// 列出项目需求
+    List {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 按状态筛选
+        #[arg(long)]
+        status: Option<String>,
+        /// 按类型筛选
+        #[arg(long = "type")]
+        issue_type: Option<String>,
+        /// 按优先级筛选
+        #[arg(long)]
+        priority: Option<String>,
+        /// 关键词搜索
+        #[arg(long, alias = "search")]
+        keyword: Option<String>,
+    },
+    /// 查看需求详情
+    Show {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 需求 ID
+        issue_id: String,
+    },
+    /// 创建新需求
+    Create {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 需求标题
+        #[arg(long)]
+        title: String,
+        /// 需求描述
+        #[arg(long, alias = "desc")]
+        description: Option<String>,
+        /// 类型 (feature/bug/improvement/question)
+        #[arg(long = "type")]
+        issue_type: Option<String>,
+        /// 优先级
+        #[arg(long)]
+        priority: Option<String>,
+        /// 负责人 ID
+        #[arg(long)]
+        assignee: Option<String>,
+        /// 标签 (逗号分隔)
+        #[arg(long)]
+        labels: Option<String>,
+    },
+    /// 更新需求
+    Update {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 需求 ID
+        issue_id: String,
+        /// 新标题
+        #[arg(long)]
+        title: Option<String>,
+        /// 新状态
+        #[arg(long)]
+        status: Option<String>,
+        /// 新优先级
+        #[arg(long)]
+        priority: Option<String>,
+        /// 新类型
+        #[arg(long = "type")]
+        issue_type: Option<String>,
+        /// 负责人 ID
+        #[arg(long)]
+        assignee: Option<String>,
+        /// 新标签 (逗号分隔)
+        #[arg(long)]
+        labels: Option<String>,
+    },
+    /// 接受需求
+    Accept {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 需求 ID
+        issue_id: String,
+    },
+    /// 交付需求
+    Deliver {
+        /// 项目 slug 或 ID
+        project_id: String,
+        /// 需求 ID
+        issue_id: String,
+        /// 交付总结
+        #[arg(long)]
+        summary: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 enum AutoRunAction {
     /// 启用 auto-run
     On {
@@ -424,180 +376,24 @@ async fn main() {
         Commands::List => {
             cli::project::list(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
+        Commands::Issue { action } => {
+            cli::issue::handle(cli.url.as_deref(), cli.token.as_deref(), cli.json, action).await
+        }
         Commands::Tasks {
-            project_id,
-            status,
-            task_type,
-            priority,
-            assignee,
-            keyword,
-            local,
-        } => {
-            cli::task::list(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                project_id.as_deref(),
-                status.as_deref(),
-                task_type.as_deref(),
-                priority.as_deref(),
-                assignee.as_deref(),
-                keyword.as_deref(),
-                local,
-            )
-            .await
+            issue_number,
+            local: _,
+        } => cli::task::list_local(cli.json, issue_number).await,
+        Commands::Pull => {
+            println!("TODO: implementing pull");
+            Ok(())
         }
-        Commands::Create {
-            project_id,
-            title,
-            description,
-            task_type,
-            priority,
-            assignee,
-            due,
-            tags,
-        } => {
-            cli::task::create(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &title,
-                description.as_deref(),
-                task_type.as_deref(),
-                priority.as_deref(),
-                assignee.as_deref(),
-                due.as_deref(),
-                tags.as_deref(),
-            )
-            .await
+        Commands::Spec { issue_number: _ } => {
+            println!("TODO: implementing spec");
+            Ok(())
         }
-        Commands::Update {
-            project_id,
-            task_id,
-            title,
-            status,
-            priority,
-            assignee,
-            task_type,
-        } => {
-            cli::task::update(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &task_id,
-                title.as_deref(),
-                status.as_deref(),
-                priority.as_deref(),
-                assignee.as_deref(),
-                task_type.as_deref(),
-            )
-            .await
-        }
-        Commands::Comment {
-            project_id,
-            task_id,
-            content,
-        } => {
-            cli::task::comment(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &task_id,
-                &content,
-            )
-            .await
-        }
-        Commands::Report { project_id } => {
-            cli::project::report(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-            )
-            .await
-        }
-        Commands::Issues {
-            project_id,
-            status,
-            issue_type,
-            priority,
-            keyword,
-        } => {
-            cli::issue::list(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                status.as_deref(),
-                issue_type.as_deref(),
-                priority.as_deref(),
-                keyword.as_deref(),
-            )
-            .await
-        }
-        Commands::CreateIssue {
-            project_id,
-            title,
-            description,
-            issue_type,
-            priority,
-            assignee,
-            labels,
-        } => {
-            cli::issue::create(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &title,
-                description.as_deref(),
-                issue_type.as_deref(),
-                priority.as_deref(),
-                assignee.as_deref(),
-                labels.as_deref(),
-            )
-            .await
-        }
-        Commands::UpdateIssue {
-            project_id,
-            issue_id,
-            title,
-            status,
-            priority,
-            issue_type,
-            assignee,
-            labels,
-        } => {
-            cli::issue::update(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &issue_id,
-                title.as_deref(),
-                status.as_deref(),
-                priority.as_deref(),
-                issue_type.as_deref(),
-                assignee.as_deref(),
-                labels.as_deref(),
-            )
-            .await
-        }
-        Commands::DecomposeIssue {
-            project_id,
-            issue_id,
-        } => {
-            cli::issue::decompose(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                &issue_id,
-            )
-            .await
+        Commands::Verify { issue_number: _ } => {
+            println!("TODO: implementing verify");
+            Ok(())
         }
         Commands::Link {
             project_id,
@@ -626,62 +422,9 @@ async fn main() {
         Commands::Info => {
             cli::workspace::info(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::Status {
-            project_id,
-            task_id,
-        } => {
-            cli::task::status(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                cli.json,
-                &project_id,
-                task_id.as_deref(),
-            )
-            .await
-        }
-        Commands::ForceUnlock {
-            project_id,
-            task_id,
-        } => {
-            cli::task::force_unlock(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                &project_id,
-                &task_id,
-            )
-            .await
-        }
-        Commands::Start {
-            project_id,
-            task,
-            auto,
-            budget,
-            total_budget,
-            cwd,
-            agent,
-            model,
-            permission_mode,
-            tools,
-            mcp_config,
-            verbose,
-        } => {
-            cli::start::run(
-                cli.url.as_deref(),
-                cli.token.as_deref(),
-                &project_id,
-                task.as_deref(),
-                auto,
-                budget,
-                total_budget,
-                cwd.as_deref(),
-                &agent,
-                model.as_deref(),
-                &permission_mode,
-                tools.as_deref(),
-                mcp_config.as_deref(),
-                verbose,
-            )
-            .await
+        Commands::Start { .. } => {
+            eprintln!("yan-pm start 正在重构中，请使用 AI 编程工具直接执行");
+            Ok(())
         }
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,

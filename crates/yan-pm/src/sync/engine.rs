@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 
-use crate::api::client::{ApiClient, CreateTaskData, TaskListParams, UpdateTaskData};
-use crate::api::types::{Task, TaskStatus};
+use crate::api::types::{TaskPriority, TaskStatus, TaskType};
 use crate::local::directory::LocalDirectory;
 use crate::local::taskfile::TaskFrontmatter;
 
@@ -16,10 +15,10 @@ type MemoryCache = HashMap<String, CachedTask>;
 #[derive(Debug, Clone)]
 struct CachedTask {
     status: TaskStatus,
-    priority: crate::api::types::TaskPriority,
+    priority: TaskPriority,
     title: String,
     assignee: Option<String>,
-    task_type: crate::api::types::TaskType,
+    task_type: TaskType,
     updated: String,
 }
 
@@ -37,14 +36,15 @@ impl CachedTask {
     }
 }
 
-/// Bidirectional sync engine for a single workspace.
+/// Sync engine for a single workspace.
+/// Currently only manages local task files. Cloud sync will be repurposed for Issues.
 pub struct SyncEngine {
     local_dir: LocalDirectory,
     project_id: String,
     cache: MemoryCache,
 }
 
-/// Result of a full sync operation.
+/// Result of a sync operation.
 #[derive(Debug, Default)]
 pub struct SyncResult {
     pub pulled: usize,
@@ -91,196 +91,15 @@ impl SyncEngine {
         Ok(())
     }
 
-    /// Full bidirectional sync.
-    ///
-    /// 1. Detect local changes BEFORE pulling (compare current files with cache)
-    /// 2. Pull all cloud tasks → create/update/archive local files
-    /// 3. Push local-only tasks (id=None) to cloud
-    /// 4. Push pre-detected local changes (with LWW conflict resolution)
-    /// 5. Update cache + last_sync timestamp
-    pub async fn full_sync(&mut self, client: &ApiClient) -> Result<SyncResult> {
-        let mut result = SyncResult::default();
-
-        // 1. Detect local changes BEFORE pulling — pull overwrites local files,
-        //    so we must capture edits first to avoid silent data loss.
-        let pre_pull_local = self.local_dir.scan_tasks()?;
-        let mut local_changes: Vec<(String, String, Vec<FieldChange>)> = Vec::new();
-        let mut new_local_tasks: Vec<crate::local::taskfile::LocalTaskFile> = Vec::new();
-        for local in &pre_pull_local {
-            if local.frontmatter.id.is_none() {
-                new_local_tasks.push(local.clone());
-                continue;
-            }
-            let task_id = local.frontmatter.id.as_ref().unwrap();
-            if let Some(cached) = self.cache.get(task_id) {
-                let changes = detect_changes(&local.frontmatter, cached);
-                if !changes.is_empty() {
-                    local_changes.push((task_id.clone(), local.frontmatter.title.clone(), changes));
-                }
-            }
-        }
-
-        // 2. Pull from cloud
-        let cloud_tasks = client
-            .list_tasks(&self.project_id, &TaskListParams::default())
-            .await
-            .context("Failed to fetch tasks from server")?;
-
-        let pull_result = self.local_dir.pull_tasks(&cloud_tasks)?;
-        result.pulled = pull_result.created + pull_result.updated;
-        result.archived = pull_result.archived;
-
-        // Build cloud task map for conflict detection
-        let cloud_map: HashMap<String, &Task> =
-            cloud_tasks.iter().map(|t| (t.id.clone(), t)).collect();
-
-        // 2b. Archive orphaned local files (server-deleted tasks)
-        let post_pull_local = self.local_dir.scan_tasks()?;
-        for local in &post_pull_local {
-            if let Some(id) = &local.frontmatter.id {
-                if !cloud_map.contains_key(id.as_str()) {
-                    if let Err(e) = self.local_dir.archive_task(&local.file_path) {
-                        result.errors.push(format!(
-                            "归档孤儿任务 '{}' 失败: {e}",
-                            local.frontmatter.title
-                        ));
-                    } else {
-                        result.archived += 1;
-                    }
-                }
-            }
-        }
-
-        // 3. Push local-only tasks (no server ID) to cloud
-        for local in &new_local_tasks {
-            match self.push_new_task(client, local).await {
-                Ok(_) => result.pushed += 1,
-                Err(e) => result.errors.push(format!(
-                    "推送新任务 '{}' 失败: {}",
-                    local.frontmatter.title, e
-                )),
-            }
-        }
-
-        // 4. Push pre-detected local changes
-        // Note: conflict resolution uses cloud-priority strategy. Local edits don't
-        // update the YAML `updated` field, so when both sides changed, cloud wins.
-        // Local-only changes (cloud unchanged since last sync) are always pushed.
-        for (task_id, title, changes) in &local_changes {
-            if let Some(cloud_task) = cloud_map.get(task_id.as_str()) {
-                if let Some(cached) = self.cache.get(task_id) {
-                    if cloud_task.updated_at != cached.updated {
-                        // Cloud changed since last sync — cloud wins, skip local push
-                        result.conflicts += 1;
-                        continue;
-                    }
-                }
-            }
-
-            match self.push_changes(client, task_id, changes).await {
-                Ok(_) => result.pushed += 1,
-                Err(e) => result
-                    .errors
-                    .push(format!("推送任务 '{title}' 变更失败: {e}",)),
-            }
-        }
-
-        // 5. Update cache
+    /// Full sync — currently a no-op placeholder. Will be repurposed for Issue sync.
+    pub async fn full_sync(
+        &mut self,
+        _client: &crate::api::client::ApiClient,
+    ) -> Result<SyncResult> {
+        let result = SyncResult::default();
         self.init_cache()?;
         self.local_dir.update_last_sync()?;
-
         Ok(result)
-    }
-
-    /// Pull only: fetch cloud tasks and update local files.
-    #[allow(dead_code)]
-    pub async fn pull(&mut self, client: &ApiClient) -> Result<SyncResult> {
-        let mut result = SyncResult::default();
-
-        let cloud_tasks = client
-            .list_tasks(&self.project_id, &TaskListParams::default())
-            .await
-            .context("Failed to fetch tasks from server")?;
-
-        let pull_result = self.local_dir.pull_tasks(&cloud_tasks)?;
-        result.pulled = pull_result.created + pull_result.updated;
-        result.archived = pull_result.archived;
-
-        self.init_cache()?;
-        self.local_dir.update_last_sync()?;
-
-        Ok(result)
-    }
-
-    /// Push a locally-created task (no server ID) to cloud.
-    /// Updates the local file with the returned server ID.
-    async fn push_new_task(
-        &self,
-        client: &ApiClient,
-        local: &crate::local::taskfile::LocalTaskFile,
-    ) -> Result<()> {
-        let data = CreateTaskData {
-            title: local.frontmatter.title.clone(),
-            description: if local.body.is_empty() {
-                None
-            } else {
-                Some(local.body.clone())
-            },
-            task_type: Some(local.frontmatter.task_type),
-            priority: Some(local.frontmatter.priority),
-            assignee_id: local.frontmatter.assignee.clone(),
-            due_date: local.frontmatter.due.clone(),
-            tags: if local.frontmatter.tags.is_empty() {
-                None
-            } else {
-                Some(local.frontmatter.tags.clone())
-            },
-        };
-
-        let created = client.create_task(&self.project_id, &data).await?;
-
-        // Update local file with server ID and number
-        let mut fm = local.frontmatter.clone();
-        fm.id = Some(created.id);
-        fm.number = created.number;
-        fm.updated = created.updated_at;
-
-        // Write new file first, then remove old (atomic: crash-safe)
-        let new_path = self.local_dir.write_task(&fm, &local.body)?;
-        if new_path != local.file_path {
-            self.local_dir.remove_task_file(&local.file_path)?;
-        }
-
-        Ok(())
-    }
-
-    /// Push detected field changes to cloud.
-    async fn push_changes(
-        &self,
-        client: &ApiClient,
-        task_id: &str,
-        changes: &[FieldChange],
-    ) -> Result<()> {
-        let mut data = UpdateTaskData {
-            title: None,
-            status: None,
-            priority: None,
-            assignee_id: None,
-            task_type: None,
-        };
-
-        for change in changes {
-            match change {
-                FieldChange::Title(v) => data.title = Some(v.clone()),
-                FieldChange::Status(v) => data.status = Some(*v),
-                FieldChange::Priority(v) => data.priority = Some(*v),
-                FieldChange::Assignee(v) => data.assignee_id = v.clone(),
-                FieldChange::TaskType(v) => data.task_type = Some(*v),
-            }
-        }
-
-        client.update_task(&self.project_id, task_id, &data).await?;
-        Ok(())
     }
 }
 
@@ -289,9 +108,9 @@ impl SyncEngine {
 enum FieldChange {
     Title(String),
     Status(TaskStatus),
-    Priority(crate::api::types::TaskPriority),
+    Priority(TaskPriority),
     Assignee(Option<String>),
-    TaskType(crate::api::types::TaskType),
+    TaskType(TaskType),
 }
 
 /// Compare a local task's frontmatter with the cached version.
