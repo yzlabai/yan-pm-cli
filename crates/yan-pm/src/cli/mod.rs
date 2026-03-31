@@ -13,6 +13,7 @@ pub mod spec;
 pub mod start;
 pub mod sync;
 pub mod task;
+pub mod verify;
 pub mod workspace;
 
 use anyhow::Result;

@@ -71,6 +71,12 @@ enum Commands {
     Spec {
         /// Issue 编号
         issue_number: i32,
+        /// 使用 AI 自动生成 Spec 内容
+        #[arg(long)]
+        ai: bool,
+        /// Agent 名称 (claude/codex/gemini)
+        #[arg(long, default_value = "claude")]
+        agent: String,
     },
     /// 验证实现
     Verify {
@@ -99,38 +105,18 @@ enum Commands {
     Info,
     /// 启动 AI Agent 执行任务
     Start {
-        /// 项目 slug 或 ID
-        project_id: String,
-        /// 指定任务 ID（不指定则选择最高优先级）
+        /// Issue 编号（执行该 Issue 下的 Task）
+        #[arg(long)]
+        issue: Option<i32>,
+        /// 指定任务编号（如 001-01）
         #[arg(long)]
         task: Option<String>,
-        /// 自动批量执行模式
-        #[arg(long)]
-        auto: bool,
-        /// 单任务最大预算 (USD)
-        #[arg(long)]
-        budget: Option<f64>,
-        /// 批量模式总预算上限 (USD)
-        #[arg(long)]
-        total_budget: Option<f64>,
-        /// Agent 工作目录
-        #[arg(long)]
-        cwd: Option<String>,
         /// Agent 名称 (claude/codex/gemini)
         #[arg(long, default_value = "claude")]
         agent: String,
-        /// 模型名称
-        #[arg(long)]
-        model: Option<String>,
-        /// 权限模式 (auto/default/plan)
+        /// 权限模式 (auto/plan/deny)
         #[arg(long, default_value = "auto")]
         permission_mode: String,
-        /// 允许的工具 (逗号分隔，如 Bash,Edit,Read)
-        #[arg(long)]
-        tools: Option<String>,
-        /// 额外 MCP 配置文件路径
-        #[arg(long)]
-        mcp_config: Option<String>,
         /// 显示详细输出
         #[arg(long)]
         verbose: bool,
@@ -386,11 +372,12 @@ async fn main() {
         Commands::Pull => {
             cli::pull::handle_pull(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::Spec { issue_number } => cli::spec::handle_spec(issue_number, cli.json).await,
-        Commands::Verify { issue_number: _ } => {
-            println!("TODO: implementing verify");
-            Ok(())
-        }
+        Commands::Spec {
+            issue_number,
+            ai,
+            agent,
+        } => cli::spec::handle_spec(issue_number, cli.json, ai, &agent).await,
+        Commands::Verify { issue_number } => cli::verify::handle_verify(issue_number).await,
         Commands::Link {
             project_id,
             path,
@@ -418,10 +405,13 @@ async fn main() {
         Commands::Info => {
             cli::workspace::info(cli.url.as_deref(), cli.token.as_deref(), cli.json).await
         }
-        Commands::Start { .. } => {
-            eprintln!("yan-pm start 正在重构中，请使用 AI 编程工具直接执行");
-            Ok(())
-        }
+        Commands::Start {
+            issue,
+            task,
+            agent,
+            permission_mode,
+            verbose,
+        } => cli::start::run(issue, task.as_deref(), &agent, &permission_mode, verbose).await,
         Commands::Mcp => mcp::start_mcp_server().await,
         Commands::Sync => cli::sync::run(cli.url.as_deref(), cli.token.as_deref()).await,
         Commands::Agents { running } => cli::agents::run(running, cli.json).await,

@@ -587,18 +587,15 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
 }
 
 #[test]
-fn test_start_help_shows_tools_and_mcp_config() {
+fn test_start_help_shows_issue_and_task() {
     let cmd = Command::cargo_bin("yan")
         .unwrap()
         .args(["start", "--help"])
         .output()
         .unwrap();
     let help = String::from_utf8(cmd.stdout).unwrap();
-    assert!(help.contains("--tools"), "should show --tools flag");
-    assert!(
-        help.contains("--mcp-config"),
-        "should show --mcp-config flag"
-    );
+    assert!(help.contains("--issue"), "should show --issue flag");
+    assert!(help.contains("--task"), "should show --task flag");
 }
 
 #[test]
@@ -621,14 +618,14 @@ fn test_login_help_shows_token() {
 }
 
 #[test]
-fn test_start_help_shows_cwd_and_budgets() {
+fn test_start_help_shows_permission_and_agent() {
     cmd()
         .args(["start", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("--cwd"))
-        .stdout(predicate::str::contains("--budget"))
-        .stdout(predicate::str::contains("--total-budget"));
+        .stdout(predicate::str::contains("--permission-mode"))
+        .stdout(predicate::str::contains("--agent"))
+        .stdout(predicate::str::contains("--verbose"));
 }
 
 // =====================
