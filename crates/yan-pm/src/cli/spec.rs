@@ -3,7 +3,14 @@ use anyhow::Result;
 use crate::local::directory::LocalDirectory;
 use crate::local::specfile::{SpecFrontmatter, SpecStatus};
 
-pub async fn handle_spec(issue_number: i32, json: bool, ai: bool, agent_name: &str) -> Result<()> {
+pub async fn handle_spec(
+    issue_number: i32,
+    json: bool,
+    ai: bool,
+    agent_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let local_dir = LocalDirectory::new(&cwd);
 
@@ -32,11 +39,34 @@ pub async fn handle_spec(issue_number: i32, json: bool, ai: bool, agent_name: &s
         .find(|i| i.frontmatter.number == issue_number)
         .ok_or_else(|| anyhow::anyhow!("Issue #{} 不存在。请先运行: yan pull", issue_number))?;
 
-    if ai {
+    let result = if ai {
         handle_ai_spec(&cwd, &local_dir, issue, agent_name, json).await
     } else {
         handle_template_spec(&local_dir, issue, json)
+    };
+
+    // Report spec_generated activity on success
+    if result.is_ok() {
+        if let Ok(api) = super::make_client(url, token) {
+            if let Some(link) = crate::config::find_workspace_link(Some(&cwd)) {
+                let ws_name = super::workspace_name_from_link(&link);
+                super::report_activity_quiet(
+                    &api,
+                    &link.project_id,
+                    &issue.frontmatter.id,
+                    "spec_generated",
+                    Some(serde_json::json!({
+                        "workspaceName": ws_name,
+                        "workspaceId": link.workspace_id,
+                    })),
+                    &ws_name,
+                )
+                .await;
+            }
+        }
     }
+
+    result
 }
 
 /// Generate spec using a template (original behavior)

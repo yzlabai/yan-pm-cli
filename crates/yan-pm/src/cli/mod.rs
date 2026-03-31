@@ -31,3 +31,29 @@ pub fn make_client(url: Option<&str>, token: Option<&str>) -> Result<ApiClient> 
     }
     ApiClient::new(&resolved.base_url, &resolved.token).map_err(|e| anyhow::anyhow!("{e}"))
 }
+
+/// Fire-and-forget activity reporting. Logs warning on failure, never blocks.
+pub async fn report_activity_quiet(
+    api: &crate::api::client::ApiClient,
+    project_id: &str,
+    issue_id: &str,
+    action: &str,
+    detail: Option<serde_json::Value>,
+    actor_name: &str,
+) {
+    if let Err(e) = api
+        .report_activity(project_id, issue_id, action, detail, Some(actor_name))
+        .await
+    {
+        tracing::warn!("Activity report failed: {}", e);
+    }
+}
+
+/// Get workspace name from link path
+pub fn workspace_name_from_link(link: &crate::config::workspace::WorkspaceEntry) -> String {
+    std::path::Path::new(&link.path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+}

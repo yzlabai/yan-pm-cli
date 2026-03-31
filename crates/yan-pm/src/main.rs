@@ -378,7 +378,17 @@ async fn main() {
             issue_number,
             ai,
             agent,
-        } => cli::spec::handle_spec(issue_number, cli.json, ai, &agent).await,
+        } => {
+            cli::spec::handle_spec(
+                issue_number,
+                cli.json,
+                ai,
+                &agent,
+                cli.url.as_deref(),
+                cli.token.as_deref(),
+            )
+            .await
+        }
         Commands::Verify { issue_number } => cli::verify::handle_verify(issue_number).await,
         Commands::Link {
             project_id,

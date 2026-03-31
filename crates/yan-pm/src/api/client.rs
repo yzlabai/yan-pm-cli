@@ -236,6 +236,30 @@ impl ApiClient {
         .await
     }
 
+    /// Report an activity for an issue (fire-and-forget style).
+    pub async fn report_activity(
+        &self,
+        project_id: &str,
+        issue_id: &str,
+        action: &str,
+        detail: Option<serde_json::Value>,
+        actor_name: Option<&str>,
+    ) -> Result<serde_json::Value, ApiError> {
+        validate_project_ref(project_id)?;
+        let mut body = serde_json::json!({ "action": action });
+        if let Some(d) = detail {
+            body["detail"] = d;
+        }
+        if let Some(name) = actor_name {
+            body["actorName"] = serde_json::Value::String(name.to_string());
+        }
+        self.post(
+            &format!("/projects/{project_id}/issues/{issue_id}/activities"),
+            &body,
+        )
+        .await
+    }
+
     // ---- Workspaces ----
 
     pub async fn list_workspaces(&self, project_id: &str) -> Result<Vec<Workspace>, ApiError> {

@@ -207,6 +207,37 @@ async fn execute_and_update(
         verbose,
     };
 
+    // Report task_started
+    if let Ok(api) = super::make_client(None, None) {
+        if let Some(link) = crate::config::find_workspace_link(Some(cwd)) {
+            if let Some(issue_num) = task_fm.issue.or(issue) {
+                let ws_name = super::workspace_name_from_link(&link);
+                let local_dir_for_report = LocalDirectory::new(cwd);
+                if let Ok(local_issues) = local_dir_for_report.scan_issues() {
+                    if let Some(iss) = local_issues
+                        .iter()
+                        .find(|i| i.frontmatter.number == issue_num)
+                    {
+                        super::report_activity_quiet(
+                            &api,
+                            &link.project_id,
+                            &iss.frontmatter.id,
+                            "task_started",
+                            Some(serde_json::json!({
+                                "taskName": task_fm.title,
+                                "agentName": backend.name(),
+                                "workspaceName": ws_name,
+                                "workspaceId": link.workspace_id,
+                            })),
+                            &ws_name,
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+
     let result = execute_agent(backend, options, None).await?;
 
     if result.success {
@@ -231,6 +262,37 @@ async fn execute_and_update(
             println!("\n📋 Agent 总结:\n{}", display);
         }
 
+        // Report task_completed
+        if let Ok(api) = super::make_client(None, None) {
+            if let Some(link) = crate::config::find_workspace_link(Some(cwd)) {
+                if let Some(issue_num) = task_fm.issue.or(issue) {
+                    let ws_name = super::workspace_name_from_link(&link);
+                    let local_dir_for_report = LocalDirectory::new(cwd);
+                    if let Ok(local_issues) = local_dir_for_report.scan_issues() {
+                        if let Some(iss) = local_issues
+                            .iter()
+                            .find(|i| i.frontmatter.number == issue_num)
+                        {
+                            super::report_activity_quiet(
+                                &api,
+                                &link.project_id,
+                                &iss.frontmatter.id,
+                                "task_completed",
+                                Some(serde_json::json!({
+                                    "taskName": task_fm.title,
+                                    "agentName": backend.name(),
+                                    "workspaceName": ws_name,
+                                    "workspaceId": link.workspace_id,
+                                })),
+                                &ws_name,
+                            )
+                            .await;
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(())
     } else {
         let summary = &result.summary;
@@ -242,6 +304,39 @@ async fn execute_and_update(
         if !summary.is_empty() {
             eprintln!("  {}", display);
         }
+
+        // Report task_failed
+        if let Ok(api) = super::make_client(None, None) {
+            if let Some(link) = crate::config::find_workspace_link(Some(cwd)) {
+                if let Some(issue_num) = task_fm.issue.or(issue) {
+                    let ws_name = super::workspace_name_from_link(&link);
+                    let local_dir_for_report = LocalDirectory::new(cwd);
+                    if let Ok(local_issues) = local_dir_for_report.scan_issues() {
+                        if let Some(iss) = local_issues
+                            .iter()
+                            .find(|i| i.frontmatter.number == issue_num)
+                        {
+                            super::report_activity_quiet(
+                                &api,
+                                &link.project_id,
+                                &iss.frontmatter.id,
+                                "task_failed",
+                                Some(serde_json::json!({
+                                    "taskName": task_fm.title,
+                                    "agentName": backend.name(),
+                                    "errorMessage": &result.summary[..result.summary.len().min(500)],
+                                    "workspaceName": ws_name,
+                                    "workspaceId": link.workspace_id,
+                                })),
+                                &ws_name,
+                            )
+                            .await;
+                        }
+                    }
+                }
+            }
+        }
+
         anyhow::bail!(
             "任务执行失败: {} (exit_code: {})",
             task_fm.title,
