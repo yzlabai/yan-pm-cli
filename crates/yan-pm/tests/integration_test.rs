@@ -3,7 +3,7 @@ use predicates::prelude::*;
 use std::io::{BufRead, Write};
 
 fn cmd() -> Command {
-    Command::cargo_bin("yan-pm-cli").unwrap()
+    Command::cargo_bin("yan").unwrap()
 }
 
 // =====================
@@ -26,7 +26,7 @@ fn test_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("yan-pm"));
+        .stdout(predicate::str::contains("yan"));
 }
 
 #[test]
@@ -482,7 +482,7 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
         .create_async()
         .await;
 
-    let binary = assert_cmd::cargo::cargo_bin("yan-pm-cli");
+    let binary = assert_cmd::cargo::cargo_bin("yan");
     let mut child = std::process::Command::new(&binary)
         .arg("mcp")
         .env("YAN_PM_BASE_URL", server.url())
@@ -588,7 +588,7 @@ async fn test_mcp_stdio_initialize_and_tools_list() {
 
 #[test]
 fn test_start_help_shows_tools_and_mcp_config() {
-    let cmd = Command::cargo_bin("yan-pm-cli")
+    let cmd = Command::cargo_bin("yan")
         .unwrap()
         .args(["start", "--help"])
         .output()

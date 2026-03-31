@@ -450,7 +450,7 @@ pub async fn start_mcp_server() -> Result<()> {
                             let result = handle_tool_call(c, tool_name, &tool_args).await;
                             ok_response(id, result)
                         } else {
-                            err_response(id, -32000, "未登录。请先在终端运行 `yan-pm-cli login`，然后重试。")
+                            err_response(id, -32000, "未登录。请先在终端运行 `yan login`，然后重试。")
                         }
                     }
 

@@ -21,8 +21,8 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "yan-pm-cli",
-    about = "yan.chat 项目管理终端 CLI — 需求管理 + AI Agent 执行 + MCP 桥接",
+    name = "yan",
+    about = "yan.chat CLI — 需求管理 + AI Agent 执行 + MCP 桥接",
     version
 )]
 struct Cli {
@@ -181,7 +181,7 @@ enum Commands {
         /// 查看安装状态
         #[arg(long)]
         status: bool,
-        /// 手动指定 yan-pm-cli 二进制路径
+        /// 手动指定 yan 二进制路径
         #[arg(long)]
         binary_path: Option<String>,
         /// MCP 注册范围 (user/project，仅 Claude Code)

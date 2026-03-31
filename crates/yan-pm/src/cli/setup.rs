@@ -106,16 +106,13 @@ fn resolve_binary_path(override_path: Option<&str>) -> Result<String> {
     }
 
     // 3. which lookup
-    if let Ok(output) = std::process::Command::new("which")
-        .arg("yan-pm-cli")
-        .output()
-    {
+    if let Ok(output) = std::process::Command::new("which").arg("yan").output() {
         if output.status.success() {
             return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
         }
     }
 
-    anyhow::bail!("无法确定 yan-pm-cli 路径，请使用 --binary-path 指定")
+    anyhow::bail!("无法确定 yan 二进制路径，请使用 --binary-path 指定")
 }
 
 // ── Claude Code setup ──
@@ -529,7 +526,7 @@ pub async fn uninstall(target: Option<&str>) -> Result<()> {
 }
 
 pub async fn status() -> Result<()> {
-    println!("{}", "yan-pm-cli setup 状态:".bold());
+    println!("{}", "yan setup 状态:".bold());
     println!();
 
     // Claude Code

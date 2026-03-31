@@ -34,7 +34,7 @@ pub fn uninstall() -> Result<()> {
 // ---- macOS launchd ----
 
 #[cfg(target_os = "macos")]
-const PLIST_LABEL: &str = "chat.yan.yan-pm-cli";
+const PLIST_LABEL: &str = "chat.yan.yan-pm";
 
 #[cfg(target_os = "macos")]
 fn plist_path() -> PathBuf {
@@ -139,7 +139,7 @@ fn service_path() -> PathBuf {
         .join(".config")
         .join("systemd")
         .join("user")
-        .join("yan-pm-cli.service")
+        .join("yan-pm.service")
 }
 
 #[cfg(target_os = "linux")]

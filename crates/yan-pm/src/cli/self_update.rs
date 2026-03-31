@@ -6,7 +6,7 @@ use colored::Colorize;
 use serde::Deserialize;
 
 const GITHUB_REPO: &str = "yzlabai/yan-pm-cli";
-const BINARY_NAME: &str = "yan-pm-cli";
+const BINARY_NAME: &str = "yan";
 
 #[derive(Deserialize)]
 struct GithubRelease {
@@ -138,7 +138,7 @@ pub async fn run() -> Result<()> {
         }
     }
 
-    let new_binary = new_binary.context("tar.gz 中未找到 yan-pm-cli 二进制")?;
+    let new_binary = new_binary.context("tar.gz 中未找到 yan 二进制")?;
 
     // 5. Replace current binary
     let current_exe = std::env::current_exe().context("无法获取当前二进制路径")?;
