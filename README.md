@@ -28,12 +28,17 @@ yan.chat CLI — 单二进制，零依赖安装。需求管理 + AI Agent 执行
 ## 安装
 
 ```bash
-# 从 GitHub Releases 下载（推荐）
+# 一键安装（推荐）
+curl -fsSL https://raw.githubusercontent.com/yzlabai/yan-pm-cli/main/install.sh | sh
+
+# 或从 GitHub Releases 手动下载
 # https://github.com/yzlabai/yan-pm-cli/releases
 
-# 或从源码构建（需要 Rust 工具链）
+# 从源码构建（需要 Rust 工具链）
 cargo install --path crates/yan-pm
 ```
+
+> 详细安装说明见 [docs/install.md](docs/install.md)（含 npm/Homebrew 等渠道）
 
 ## 登录与配置
 
